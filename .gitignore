@@ -1,3 +1,39 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
 releases/
+
+# Editor & IDE
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# AI tools
+.claude/
+.cursor/
+.copilot/
+.aider*
+.continue/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs & env
+*.log
+*.env
+.env.*
+
+# TypeScript
+*.tsbuildinfo
+
+# Misc
+*lock.json
+*.tmp
+*.bak
