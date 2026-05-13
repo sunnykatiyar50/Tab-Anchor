@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Privacy Policy — Tab Anchor</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f8fafc;
+      color: #1e293b;
+      line-height: 1.7;
+    }
+    header {
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 36px 24px;
+      text-align: center;
+    }
+    header h1 { font-size: 1.8rem; font-weight: 700; }
+    header p  { color: #94a3b8; margin-top: 6px; font-size: 0.95rem; }
+    main {
+      max-width: 720px;
+      margin: 48px auto;
+      padding: 0 24px 64px;
+    }
+    h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 36px 0 10px;
+    }
+    p, li { font-size: 0.97rem; color: #334155; }
+    ul { padding-left: 20px; margin-top: 6px; }
+    li { margin-bottom: 6px; }
+    .card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 24px 28px;
+      margin-top: 12px;
+    }
+    .highlight {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin-top: 24px;
+      font-size: 0.95rem;
+      color: #166534;
+    }
+    footer {
+      text-align: center;
+      font-size: 0.85rem;
+      color: #94a3b8;
+      padding: 24px;
+      border-top: 1px solid #e2e8f0;
+    }
+    a { color: #f59e0b; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Tab Anchor</h1>
+  <p>Privacy Policy</p>
+</header>
+
+<main>
+
+  <div class="highlight">
+    <strong>Summary:</strong> Tab Anchor collects no personal data, sends nothing to any server, and stores everything locally in your browser only.
+  </div>
+
+  <h2>1. Overview</h2>
+  <div class="card">
+    <p>Tab Anchor ("the extension") is a browser extension for Google Chrome that allows users to lock tabs to a specific URL, rename tabs, and protect tabs from accidental navigation or closure. This Privacy Policy explains what data the extension handles and how.</p>
+  </div>
+
+  <h2>2. Data We Do Not Collect</h2>
+  <div class="card">
+    <p>Tab Anchor does <strong>not</strong> collect, transmit, sell, or share any personal information. Specifically, we do not collect:</p>
+    <ul>
+      <li>Browsing history or URLs you visit</li>
+      <li>Personal identifiers (name, email, IP address, device ID)</li>
+      <li>Usage analytics or telemetry</li>
+      <li>Crash reports or diagnostics</li>
+      <li>Any data that leaves your device</li>
+    </ul>
+  </div>
+
+  <h2>3. Data Stored Locally</h2>
+  <div class="card">
+    <p>The extension stores the following data in your browser's local storage (<code>chrome.storage.local</code>). This data never leaves your device:</p>
+    <ul>
+      <li><strong>Lock state</strong> — which tabs are locked and their locked URLs</li>
+      <li><strong>Lock history</strong> — a log of past lock/unlock sessions (URL, timestamp, mode)</li>
+      <li><strong>Custom tab names</strong> — any rename you apply to a tab</li>
+      <li><strong>Settings</strong> — your theme and UI preferences</li>
+    </ul>
+    <p style="margin-top:12px;">This data is stored per browser profile, is never synced to external servers, and can be cleared at any time from the extension's History page or via Chrome's built-in storage controls.</p>
+  </div>
+
+  <h2>4. Network Requests</h2>
+  <div class="card">
+    <p>The extension makes no outbound network requests to any external server. The only fetch it performs is retrieving the favicon of the page currently open in your browser tab — this is a request to that page's own server (the site you are already visiting) solely to render a visual lock badge on the icon.</p>
+  </div>
+
+  <h2>5. Permissions Explained</h2>
+  <div class="card">
+    <ul>
+      <li><strong>tabs</strong> — to read the current tab URL and detect navigation changes</li>
+      <li><strong>tabGroups</strong> — to restore tab group membership when a locked tab is reopened</li>
+      <li><strong>storage</strong> — to save lock state, history, and settings locally</li>
+      <li><strong>contextMenus</strong> — to add right-click actions on the extension icon</li>
+      <li><strong>&lt;all_urls&gt;</strong> — to inject the UI (warning banners, lock chip, rename dialog) into any tab the user locks</li>
+    </ul>
+  </div>
+
+  <h2>6. Third Parties</h2>
+  <div class="card">
+    <p>Tab Anchor does not integrate with any third-party services, analytics platforms, or advertising networks. No data is shared with any third party.</p>
+  </div>
+
+  <h2>7. Children's Privacy</h2>
+  <div class="card">
+    <p>Tab Anchor does not knowingly collect any information from anyone, including children under the age of 13.</p>
+  </div>
+
+  <h2>8. Changes to This Policy</h2>
+  <div class="card">
+    <p>If this policy is updated, the revised version will be posted at this URL with an updated effective date. Continued use of the extension after changes constitutes acceptance of the updated policy.</p>
+  </div>
+
+  <h2>9. Contact</h2>
+  <div class="card">
+    <p>For questions about this privacy policy, contact: <a href="mailto:sunny@xecurify.com">sunny@xecurify.com</a></p>
+  </div>
+
+  <p style="margin-top: 36px; font-size: 0.85rem; color: #94a3b8;">Effective date: May 14, 2026</p>
+
+</main>
+
+<footer>
+  &copy; 2026 Tab Anchor. All rights reserved.
+</footer>
+
+</body>
+</html>
