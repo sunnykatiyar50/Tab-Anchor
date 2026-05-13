@@ -19,7 +19,7 @@ const AdmZip = require('adm-zip');
 
 // ─── Paths ───────────────────────────────────────────────────────────────────
 
-const ROOT     = __dirname;
+const ROOT     = path.join(__dirname, '..');
 const BUILDS   = path.join(ROOT, 'dist');
 const RELEASES = path.join(ROOT, 'releases');
 

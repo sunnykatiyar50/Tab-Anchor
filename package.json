@@ -4,7 +4,7 @@
   "description": "Browser extension to anchor, rename, and protect tabs",
   "private": true,
   "scripts": {
-    "build": "node build.js"
+    "build": "node scripts/build.js"
   },
   "devDependencies": {
     "adm-zip": "^0.5.16"
