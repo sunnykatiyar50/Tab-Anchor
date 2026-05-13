@@ -1,0 +1,12 @@
+{
+  "name": "tab-anchor",
+  "version": "1.0.2",
+  "description": "Browser extension to anchor, rename, and protect tabs",
+  "private": true,
+  "scripts": {
+    "build": "node build.js"
+  },
+  "devDependencies": {
+    "adm-zip": "^0.5.16"
+  }
+}
