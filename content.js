@@ -138,21 +138,51 @@ function showWarningOverlay(attemptedUrl, lockedUrl) {
 
   const overlay = document.createElement('div');
   overlay.id = '__tab-anchor-overlay__';
-  overlay.innerHTML = `
-    <div class="tl-banner">
-      <span class="tl-icon" aria-hidden="true">&#128274;</span>
-      <div class="tl-text">
-        <strong>Navigation blocked by Tab Anchor</strong> &mdash; navigation to
-        <span class="tl-url" title="${escapeHtml(attemptedUrl)}">${escapeHtml(attemptedUrl)}</span>
-        was blocked.
-      </div>
-      <div class="tl-actions">
-        <button class="tl-btn tl-btn-stay" id="tl-stay">Stay here</button>
-        <button class="tl-btn tl-btn-unlock" id="tl-unlock">Unlock &amp; Go</button>
-      </div>
-      <button class="tl-close" id="tl-close" aria-label="Dismiss warning">&times;</button>
-    </div>
-  `;
+  const banner = document.createElement('div');
+  banner.className = 'tl-banner';
+
+  const lockIcon = document.createElement('span');
+  lockIcon.className = 'tl-icon';
+  lockIcon.setAttribute('aria-hidden', 'true');
+  lockIcon.textContent = '🔒';
+  banner.appendChild(lockIcon);
+
+  const textDiv = document.createElement('div');
+  textDiv.className = 'tl-text';
+  const strongEl = document.createElement('strong');
+  strongEl.textContent = 'Navigation blocked by Tab Anchor';
+  textDiv.appendChild(strongEl);
+  textDiv.appendChild(document.createTextNode(' — navigation to '));
+  const blockedUrlSpan = document.createElement('span');
+  blockedUrlSpan.className = 'tl-url';
+  blockedUrlSpan.title = attemptedUrl;
+  blockedUrlSpan.textContent = attemptedUrl;
+  textDiv.appendChild(blockedUrlSpan);
+  textDiv.appendChild(document.createTextNode(' was blocked.'));
+  banner.appendChild(textDiv);
+
+  const actionsDiv = document.createElement('div');
+  actionsDiv.className = 'tl-actions';
+  const stayBtn = document.createElement('button');
+  stayBtn.className = 'tl-btn tl-btn-stay';
+  stayBtn.id = 'tl-stay';
+  stayBtn.textContent = 'Stay here';
+  actionsDiv.appendChild(stayBtn);
+  const unlockBtn = document.createElement('button');
+  unlockBtn.className = 'tl-btn tl-btn-unlock';
+  unlockBtn.id = 'tl-unlock';
+  unlockBtn.textContent = 'Unlock & Go';
+  actionsDiv.appendChild(unlockBtn);
+  banner.appendChild(actionsDiv);
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'tl-close';
+  closeBtn.id = 'tl-close';
+  closeBtn.setAttribute('aria-label', 'Dismiss warning');
+  closeBtn.textContent = '×';
+  banner.appendChild(closeBtn);
+
+  overlay.appendChild(banner);
   document.body.appendChild(overlay);
 
   _warningTimer = setTimeout(removeWarningOverlay, 5000);
@@ -326,17 +356,38 @@ function showRenameDialog() {
   const current = document.title;
   const el = document.createElement('div');
   el.id = '__tab-anchor-rename__';
-  el.innerHTML = `
-    <div class="tl-rename-dialog">
-      <label class="tl-rename-label">Rename tab</label>
-      <input class="tl-rename-input" id="tl-rename-input" type="text"
-             value="${escapeHtml(current)}" maxlength="80" autocomplete="off" />
-      <div class="tl-rename-actions">
-        <button class="tl-rename-btn tl-rename-cancel" id="tl-rename-cancel">Cancel</button>
-        <button class="tl-rename-btn tl-rename-confirm" id="tl-rename-confirm">Save</button>
-      </div>
-    </div>
-  `;
+  const renameDialog = document.createElement('div');
+  renameDialog.className = 'tl-rename-dialog';
+
+  const renameLabel = document.createElement('label');
+  renameLabel.className = 'tl-rename-label';
+  renameLabel.textContent = 'Rename tab';
+  renameDialog.appendChild(renameLabel);
+
+  const renameInput = document.createElement('input');
+  renameInput.className = 'tl-rename-input';
+  renameInput.id = 'tl-rename-input';
+  renameInput.type = 'text';
+  renameInput.value = current;
+  renameInput.maxLength = 80;
+  renameInput.autocomplete = 'off';
+  renameDialog.appendChild(renameInput);
+
+  const renameActions = document.createElement('div');
+  renameActions.className = 'tl-rename-actions';
+  const renameCancelBtn = document.createElement('button');
+  renameCancelBtn.className = 'tl-rename-btn tl-rename-cancel';
+  renameCancelBtn.id = 'tl-rename-cancel';
+  renameCancelBtn.textContent = 'Cancel';
+  renameActions.appendChild(renameCancelBtn);
+  const renameConfirmBtn = document.createElement('button');
+  renameConfirmBtn.className = 'tl-rename-btn tl-rename-confirm';
+  renameConfirmBtn.id = 'tl-rename-confirm';
+  renameConfirmBtn.textContent = 'Save';
+  renameActions.appendChild(renameConfirmBtn);
+
+  renameDialog.appendChild(renameActions);
+  el.appendChild(renameDialog);
   document.body.appendChild(el);
   const input = el.querySelector('#tl-rename-input');
   input.focus();

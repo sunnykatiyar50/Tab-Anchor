@@ -129,48 +129,80 @@ function buildRow(entry) {
   siteTd.className = 'col-site';
   let host = '';
   try { host = new URL(entry.url).hostname.replace(/^www\./, ''); } catch {}
-  siteTd.innerHTML = `
-    <div class="site-cell">
-      <span class="site-host">${esc(host)}</span>
-      ${entry.pageTitle ? `<span class="site-title">${esc(entry.pageTitle)}</span>` : ''}
-      <span class="site-url" title="${esc(entry.url)}">${esc(entry.url)}</span>
-    </div>`;
+  const siteCell = document.createElement('div');
+  siteCell.className = 'site-cell';
+  const hostSpan = document.createElement('span');
+  hostSpan.className = 'site-host';
+  hostSpan.textContent = host;
+  siteCell.appendChild(hostSpan);
+  if (entry.pageTitle) {
+    const titleSpan = document.createElement('span');
+    titleSpan.className = 'site-title';
+    titleSpan.textContent = entry.pageTitle;
+    siteCell.appendChild(titleSpan);
+  }
+  const urlSpan = document.createElement('span');
+  urlSpan.className = 'site-url';
+  urlSpan.title = entry.url;
+  urlSpan.textContent = entry.url;
+  siteCell.appendChild(urlSpan);
+  siteTd.appendChild(siteCell);
 
   // Custom name
   const nameTd = document.createElement('td');
   nameTd.className = 'col-name';
-  nameTd.innerHTML = entry.rename
-    ? `<span class="name-tag">${esc(entry.rename)}</span>`
-    : `<span class="empty-val">—</span>`;
+  const nameSpan = document.createElement('span');
+  nameSpan.className = entry.rename ? 'name-tag' : 'empty-val';
+  nameSpan.textContent = entry.rename || '—';
+  nameTd.appendChild(nameSpan);
 
   // Mode
   const modeTd = document.createElement('td');
   modeTd.className = 'col-mode';
-  modeTd.innerHTML = `<span class="mode-badge mode-${entry.mode}">${entry.mode === 'hard' ? 'Hard' : 'Soft'}</span>`;
+  const modeBadge = document.createElement('span');
+  modeBadge.className = `mode-badge mode-${entry.mode}`;
+  modeBadge.textContent = entry.mode === 'hard' ? 'Hard' : 'Soft';
+  modeTd.appendChild(modeBadge);
 
   // Group
   const groupTd = document.createElement('td');
   groupTd.className = 'col-group';
   if (entry.groupInfo) {
-    groupTd.innerHTML = `<span class="group-tag">
-      <span class="group-dot" style="background:${groupColor(entry.groupInfo.color)}"></span>
-      ${esc(entry.groupInfo.title || 'Group')}
-    </span>`;
+    const groupTag = document.createElement('span');
+    groupTag.className = 'group-tag';
+    const dot = document.createElement('span');
+    dot.className = 'group-dot';
+    dot.style.background = groupColor(entry.groupInfo.color);
+    groupTag.appendChild(dot);
+    groupTag.appendChild(document.createTextNode(entry.groupInfo.title || 'Group'));
+    groupTd.appendChild(groupTag);
   } else {
-    groupTd.innerHTML = `<span class="empty-val">—</span>`;
+    const emptyGroup = document.createElement('span');
+    emptyGroup.className = 'empty-val';
+    emptyGroup.textContent = '—';
+    groupTd.appendChild(emptyGroup);
   }
 
   // Locked at
   const lockedTd = document.createElement('td');
   lockedTd.className = 'col-time';
-  lockedTd.innerHTML = `<span title="${fmtFull(entry.lockedAt)}">${fmtRel(entry.lockedAt)}</span>`;
+  const lockedSpan = document.createElement('span');
+  lockedSpan.title = fmtFull(entry.lockedAt);
+  lockedSpan.textContent = fmtRel(entry.lockedAt);
+  lockedTd.appendChild(lockedSpan);
 
   // Unlocked at
   const unlockedTd = document.createElement('td');
   unlockedTd.className = 'col-time';
-  unlockedTd.innerHTML = entry.unlockedAt
-    ? `<span title="${fmtFull(entry.unlockedAt)}">${fmtRel(entry.unlockedAt)}</span>`
-    : `<span class="active-badge">Active</span>`;
+  const unlockedSpan = document.createElement('span');
+  if (entry.unlockedAt) {
+    unlockedSpan.title = fmtFull(entry.unlockedAt);
+    unlockedSpan.textContent = fmtRel(entry.unlockedAt);
+  } else {
+    unlockedSpan.className = 'active-badge';
+    unlockedSpan.textContent = 'Active';
+  }
+  unlockedTd.appendChild(unlockedSpan);
 
   // Delete
   const actionsTd = document.createElement('td');
