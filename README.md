@@ -4,7 +4,7 @@
 
 Inspired by the workspace tab-locking feature that Microsoft Edge included up to version 143.
 
-**Compatible with Chrome, Edge, and Firefox (109+).**
+**Compatible with Chrome, Edge, and Firefox (142+).**
 
 ---
 
@@ -14,11 +14,12 @@ Inspired by the workspace tab-locking feature that Microsoft Edge included up to
 |---|---|---|
 | 🔐 | **Hard lock** | Blocks all navigation away from the locked URL; a banner lets you stay or unlock and go |
 | 🔓 | **Soft lock** | Navigation is allowed, but a floating chip keeps a one-click shortcut back to the pinned URL |
-| 🛡️ | **Tab close protection** | Closed hard-locked tabs are automatically reopened and re-locked |
+| 🛡️ | **Tab close protection** | Closed locked tabs (hard or soft) are automatically reopened and re-locked at the pinned URL |
+| 🔗 | **Hard lock link behavior** | Choose whether links open a warning, a new tab in the same group, or a new tab outside any group |
 | ✏️ | **Tab rename** | Assign a persistent custom title that survives page loads and navigation |
 | 🌐 | **Favicon badge** | A gold lock badge is composited onto the tab's favicon while locked |
 | 📋 | **Lock history** | Every session is logged with URL, title, custom name, group, mode, and timestamps |
-| 📤 | **Import / Export** | Back up and restore history as JSON; merges by entry ID, no duplicates |
+| 📤 | **Import / Export** | Back up and restore history as JSON; merges by entry ID, reconciles stale active entries |
 | 🗂️ | **Tab group awareness** | Group name and colour are recorded; the tab is restored to its group if closed |
 | 🎨 | **Theming** | History and settings page supports System, Light, and Dark themes |
 | 🖱️ | **Context menu** | All actions available by right-clicking the extension icon or tab strip |
@@ -36,16 +37,26 @@ A **red banner** appears at the top of the page with two action buttons:
 
 The banner auto-dismisses after **5 seconds**. The × button closes it immediately.
 
+### Hard lock link behavior
+
+Instead of blocking navigation with a warning, you can configure hard-locked tabs to open links in a new tab. Choose from the **Settings** page:
+
+| Option | Behaviour |
+|---|---|
+| **Block** *(default)* | Redirect back to pinned URL and show warning banner |
+| **New tab · same group** | Open the link in a new tab placed in the same tab group |
+| **New tab · no group** | Open the link in a new tab outside any group |
+
 ---
 
 ## 🔓 Soft lock
 
-Soft lock is a lighter alternative. Navigation is allowed, but a **floating chip** appears in the bottom-right corner of every page showing:
+Soft lock is a lighter alternative. Navigation is allowed, but a **floating chip** appears in the bottom-right corner of every page you navigate to. The chip shows:
 
-- **Go to Pinned URL** — one click returns you to the locked URL from anywhere
+- **Go to Pinned URL** — one click returns you to the locked URL *(only shown when you have navigated away from the pinned URL)*
 - **×** — removes the soft lock entirely
 
-The chip is visible on every page while soft lock is active, making it easy to get back without hunting through browser history.
+The chip is visible while soft lock is active, making it easy to get back without hunting through browser history.
 
 ---
 
@@ -65,7 +76,9 @@ The icon always reflects the lock state of the currently visible tab.
 
 ## 🛡️ Tab close protection
 
-If a hard-locked tab is closed, the extension automatically reopens it in the same window and re-applies the lock. An **orange banner** confirms: *"Tab closing blocked by Tab Anchor — this tab has been restored to its locked URL."* It auto-dismisses after **2 seconds**.
+If a locked tab (hard **or** soft) is closed, the extension automatically reopens it in the same window at its pinned URL and re-applies the lock. An **orange banner** confirms: *"Tab closing blocked by Tab Anchor — this tab has been restored to its locked URL."* It auto-dismisses after **2 seconds**.
+
+The tab is also restored to its original tab group (or a new group with the same name and colour if the original was deleted).
 
 > **Note:** if the entire browser window is closed, Tab Anchor does not reopen the tab. The lock is simply removed.
 
@@ -102,13 +115,22 @@ All actions are available by right-clicking the extension icon (Chrome/Edge) or 
 
 Every time a tab is locked or unlocked, an entry is written to a persistent history log (up to **1 000 entries**). Each entry stores:
 
-- 🔗 The locked URL and original page title
+- 🔗 The locked URL and original page title (clickable — opens the URL in a new tab)
 - ✏️ Custom name (if set)
 - 🔒 Lock mode (Hard / Soft)
 - 🗂️ Tab group name and colour (if the tab was in a group)
 - 🕐 Timestamps for when the tab was locked and unlocked
 
-The **Tab History** page (accessible from the context menu or the browser's extension settings) shows the full log as a **searchable table**. Entries still actively locked are highlighted and marked **Active**.
+The **Tab History** page (accessible from the context menu or the browser's extension settings) shows the full log as a **searchable, filterable table**. Entries still actively locked are highlighted and marked **Active**.
+
+### Multi-select actions
+
+Each row has a checkbox. When one or more rows are selected, two action buttons appear in the toolbar:
+
+- **Open Selected (N)** — opens each selected URL in a new tab
+- **Delete Selected (N)** — permanently removes the selected entries
+
+The header checkbox selects or deselects all visible rows at once. Selection is cleared when the search filter changes.
 
 ---
 
@@ -117,8 +139,8 @@ The **Tab History** page (accessible from the context menu or the browser's exte
 The history page supports:
 
 - **Export** — saves all entries as a `.json` file
-- **Import** — merges from a previously exported file; duplicate entries (matched by ID) are skipped
-- **Clear All** — removes only closed sessions; active locks are never deleted
+- **Import** — merges from a previously exported file; duplicate entries (matched by ID) are skipped. Any entry that was marked *active* in the source browser but has no corresponding open locked tab in the current browser is automatically marked as closed on import.
+- **Clear All** — removes only closed sessions that have no custom name; active locks and custom-named entries are never deleted
 
 ---
 
@@ -132,6 +154,7 @@ Open **Tab History → Settings** to configure:
 **⚙️ Behaviour**
 - **Navigation & close banners** — show or hide the red and orange warning banners. The lock remains active; only the banners are suppressed.
 - **Soft lock chip** — show or hide the floating bottom-right chip. The soft lock itself remains active.
+- **Hard lock — link behavior** — choose what happens when a link is clicked on a hard-locked tab: block navigation, open in a new tab in the same group, or open in a new tab outside any group.
 
 ---
 
@@ -170,8 +193,11 @@ Lock state is stored in `chrome.storage.local`. When the browser is restarted, a
 | Right-click → **Tab History** | Open history & settings page |
 | Banner → **Stay here** | Dismiss warning, remain on locked URL |
 | Banner → **Unlock & Go** | Unlock and continue to blocked URL |
-| Chip → **Go to Pinned URL** | Return to the soft-locked URL |
+| Chip → **Go to Pinned URL** | Return to the soft-locked URL (shown only when away from pinned URL) |
 | Chip → **×** | Remove soft lock |
+| History → hostname or URL | Open the locked URL in a new tab |
+| History → checkbox + **Open Selected** | Open all selected URLs as new tabs |
+| History → checkbox + **Delete Selected** | Remove selected history entries |
 
 ---
 
@@ -183,7 +209,7 @@ Lock state is stored in `chrome.storage.local`. When the browser is restarted, a
 | `tabGroups` | Read and restore tab group membership when a locked tab is reopened |
 | `storage` | Persist lock state, history, and settings across sessions |
 | `contextMenus` | Add actions to the tab strip and extension icon right-click menu |
-| `host_permissions: <all_urls>` | Inject the warning banner, chip, and favicon badge into any page |
+| `host_permissions: <all_urls>` | Inject the warning banner, chip, and favicon badge into any page the user locks |
 
 > 🔒 No data is sent anywhere. Everything runs locally in the browser.
 
@@ -195,7 +221,7 @@ Lock state is stored in `chrome.storage.local`. When the browser is restarted, a
 |---|---|---|
 | ![Chrome](https://img.shields.io/badge/Chrome-99+-4285F4?logo=googlechrome&logoColor=white) | 99+ | Full support including tab groups |
 | ![Edge](https://img.shields.io/badge/Edge-99+-0078D7?logo=microsoftedge&logoColor=white) | 99+ | Identical to Chrome (same engine) |
-| ![Firefox](https://img.shields.io/badge/Firefox-109+-FF7139?logo=firefox&logoColor=white) | 109+ | Tab groups not supported |
+| ![Firefox](https://img.shields.io/badge/Firefox-142+-FF7139?logo=firefox&logoColor=white) | 142+ | Tab groups not supported |
 
 ---
 
@@ -211,9 +237,13 @@ Tab Anchor/
 ├── styles/
 │   ├── content.css        Styles for banners, chip, and rename dialog
 │   └── options.css        Styles for the history & settings page (theming via CSS variables)
-├── icons/                 Toolbar and extension management icons
-├── generate-icons.html    One-time icon generator (open in Chrome)
-├── build.js               Build and packaging script
+├── icons/                 Toolbar and extension management icons (including logo assets)
+├── images/                Store listing screenshots
+├── docs/
+│   └── privacy-policy.html  Privacy policy (hosted via GitHub Pages)
+├── scripts/
+│   ├── build.js           Build and packaging script
+│   └── generate-icons.html  One-time icon generator (open in Chrome)
 └── package.json           Node.js project config
 ```
 
@@ -240,7 +270,7 @@ npm run build
 This produces:
 
 - `dist/chrome/` — unpacked Chrome extension ready to load for development
-- `dist/firefox/` — unpacked Firefox extension (includes `browser_specific_settings` for AMO)
+- `dist/firefox/` — unpacked Firefox extension (includes `browser_specific_settings` and `data_collection_permissions` for AMO)
 - `releases/tab-anchor-chrome-v{version}.zip` — ready for Chrome Web Store submission
 - `releases/tab-anchor-firefox-v{version}.zip` — ready for Firefox Add-ons (AMO) submission
 
