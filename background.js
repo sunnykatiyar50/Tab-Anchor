@@ -210,7 +210,13 @@ async function updateToolbarIcon(tabId) {
 // Called by the GET_FAVICON_DATA message handler.
 // ============================================================
 
+const _faviconCache = new Map();
+
 async function generateLockedFavicon(originalFaviconUrl) {
+  if (originalFaviconUrl && _faviconCache.has(originalFaviconUrl)) {
+    return _faviconCache.get(originalFaviconUrl);
+  }
+
   const size = 32;
   const canvas = new OffscreenCanvas(size, size);
   const ctx = canvas.getContext('2d');
@@ -255,11 +261,13 @@ async function generateLockedFavicon(originalFaviconUrl) {
   ctx.stroke();
 
   const blob = await canvas.convertToBlob({ type: 'image/png' });
-  return new Promise((resolve) => {
+  const dataUrl = await new Promise((resolve) => {
     const reader = new FileReader();
     reader.onloadend = () => resolve(reader.result);
     reader.readAsDataURL(blob);
   });
+  if (originalFaviconUrl) _faviconCache.set(originalFaviconUrl, dataUrl);
+  return dataUrl;
 }
 
 // Tell the content script to apply or remove the favicon overlay.
@@ -267,7 +275,12 @@ async function notifyFaviconState(tabId) {
   try {
     const lockData = await getLockData(tabId);
     if (lockData) {
-      await chrome.tabs.sendMessage(tabId, { type: 'APPLY_LOCK_FAVICON', mode: lockData.mode });
+      const tab = await chrome.tabs.get(tabId).catch(() => null);
+      await chrome.tabs.sendMessage(tabId, {
+        type: 'APPLY_LOCK_FAVICON',
+        mode: lockData.mode,
+        favIconUrl: tab?.favIconUrl || null,
+      });
     } else {
       await chrome.tabs.sendMessage(tabId, { type: 'REMOVE_LOCK_FAVICON' });
     }
@@ -612,12 +625,14 @@ async function handleMessage(msg, sender) {
     case 'GET_LOCK_STATUS': {
       const tabId = msg.tabId ?? senderTabId;
       const lockData = await getLockData(tabId);
+      const tab = lockData ? await chrome.tabs.get(tabId).catch(() => null) : null;
       return {
         locked: !!lockData,
         mode: lockData?.mode ?? null,
         lockedUrl: lockData?.lockedUrl ?? null,
         attemptedUrl: lockData?.attemptedUrl ?? null,
-        rename: lockData?.rename ?? null
+        rename: lockData?.rename ?? null,
+        favIconUrl: tab?.favIconUrl || null,
       };
     }
 

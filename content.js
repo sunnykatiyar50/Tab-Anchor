@@ -60,7 +60,7 @@ async function initTabAnchor() {
         showCloseWarningBanner();
         break;
       case 'APPLY_LOCK_FAVICON':
-        applyLockFaviconFromBackground();
+        applyLockFaviconFromBackground(msg.favIconUrl ?? null);
         break;
       case 'REMOVE_LOCK_FAVICON':
         removeLockFavicon();
@@ -95,7 +95,7 @@ async function checkLockStatusOnLoad() {
       removeLockFavicon();
       return;
     }
-    applyLockFaviconFromBackground();
+    applyLockFaviconFromBackground(res.favIconUrl ?? null);
     // Hard lock warning banner
     if (res.mode === 'hard' && res.attemptedUrl) {
       console.log('[TabAnchor] showing warning overlay');
@@ -250,10 +250,11 @@ function showCloseWarningBanner() {
 
 const _TL_FAVICON_ID = '__tl-favicon__';
 let _faviconObserver = null;
+let _faviconDebounce = null;
 
-async function applyLockFaviconFromBackground() {
+async function applyLockFaviconFromBackground(favIconUrl = null) {
   _faviconObserver?.disconnect();
-  await _refreshLockedFavicon();
+  await _refreshLockedFavicon(favIconUrl);
 
   _faviconObserver = new MutationObserver((mutations) => {
     // Only react to changes made by the page, not by our own element
@@ -269,7 +270,8 @@ async function applyLockFaviconFromBackground() {
     });
     if (!externalChange) return;
     if (!document.getElementById(_TL_FAVICON_ID)) return;
-    _refreshLockedFavicon();
+    clearTimeout(_faviconDebounce);
+    _faviconDebounce = setTimeout(() => _refreshLockedFavicon(), 300);
   });
   _faviconObserver.observe(document.head ?? document.documentElement, {
     childList: true, subtree: false,
@@ -277,12 +279,13 @@ async function applyLockFaviconFromBackground() {
   });
 }
 
-async function _refreshLockedFavicon() {
+async function _refreshLockedFavicon(hintUrl = null) {
   try {
     const link = document.querySelector(
       `link[rel="icon"]:not(#${_TL_FAVICON_ID}), link[rel="shortcut icon"], link[rel="apple-touch-icon"]`
     );
-    const originalUrl = (link?.href && (() => { try { new URL(link.href); return link.href; } catch { return null; } })()) ?? null;
+    const domUrl = (link?.href && (() => { try { new URL(link.href); return link.href; } catch { return null; } })()) ?? null;
+    const originalUrl = domUrl ?? hintUrl ?? null;
     const res = await chrome.runtime.sendMessage({ type: 'GET_FAVICON_DATA', originalFaviconUrl: originalUrl });
     if (!res?.faviconDataUrl) return;
     let el = document.getElementById(_TL_FAVICON_ID);
