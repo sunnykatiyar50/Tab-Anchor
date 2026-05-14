@@ -167,9 +167,12 @@ function buildRow(entry) {
   try { host = new URL(entry.url).hostname.replace(/^www\./, ''); } catch {}
   const siteCell = document.createElement('div');
   siteCell.className = 'site-cell';
-  const hostSpan = document.createElement('span');
+  const hostSpan = document.createElement('a');
   hostSpan.className = 'site-host';
   hostSpan.textContent = host;
+  hostSpan.href = entry.url;
+  hostSpan.target = '_blank';
+  hostSpan.rel = 'noopener noreferrer';
   siteCell.appendChild(hostSpan);
   if (entry.pageTitle) {
     const titleSpan = document.createElement('span');
@@ -177,8 +180,11 @@ function buildRow(entry) {
     titleSpan.textContent = entry.pageTitle;
     siteCell.appendChild(titleSpan);
   }
-  const urlSpan = document.createElement('span');
+  const urlSpan = document.createElement('a');
   urlSpan.className = 'site-url';
+  urlSpan.href = entry.url;
+  urlSpan.target = '_blank';
+  urlSpan.rel = 'noopener noreferrer';
   urlSpan.title = entry.url;
   urlSpan.textContent = entry.url;
   siteCell.appendChild(urlSpan);

@@ -285,6 +285,12 @@ main {
   font-weight: 600;
   font-size: 13px;
   color: var(--text-primary);
+  text-decoration: none;
+}
+
+a.site-host:hover {
+  color: #F59E0B;
+  text-decoration: underline;
 }
 
 .site-title {
@@ -305,6 +311,12 @@ main {
   text-overflow: ellipsis;
   max-width: 380px;
   display: block;
+  text-decoration: none;
+}
+
+a.site-url:hover {
+  color: #F59E0B;
+  text-decoration: underline;
 }
 
 .name-tag {
