@@ -313,25 +313,45 @@ function removeLockFavicon() {
 function showSoftLockChip(lockedUrl, atHome) {
   if (!_settings.showChip) return;
   hideSoftLockChip();
-  const el = document.createElement('div');
-  el.id = '__tab-anchor-chip__';
-  el.innerHTML = `
-    <div class="tl-chip">
-      <span class="tl-chip-icon">&#128274;</span>
-      <span class="tl-chip-label">Soft locked</span>
-      <button class="tl-chip-back">Go to Pinned URL</button>
-      <button class="tl-chip-close" title="Remove soft lock">&times;</button>
-    </div>
-  `;
-  document.body.appendChild(el);
-  el.querySelector('.tl-chip-back')?.addEventListener('click', () => {
-    try { chrome.runtime.sendMessage({ type: 'GO_BACK_TO_LOCKED' }); } catch {}
-  });
-  el.querySelector('.tl-chip-close').addEventListener('click', () => {
+
+  const chip = document.createElement('div');
+  chip.className = 'tl-chip';
+
+  const icon = document.createElement('span');
+  icon.className = 'tl-chip-icon';
+  icon.textContent = '🔒';
+  chip.appendChild(icon);
+
+  const label = document.createElement('span');
+  label.className = 'tl-chip-label';
+  label.textContent = 'Soft locked';
+  chip.appendChild(label);
+
+  if (!atHome) {
+    const backBtn = document.createElement('button');
+    backBtn.className = 'tl-chip-back';
+    backBtn.textContent = 'Go to Pinned URL';
+    backBtn.addEventListener('click', () => {
+      try { chrome.runtime.sendMessage({ type: 'GO_BACK_TO_LOCKED' }); } catch {}
+    });
+    chip.appendChild(backBtn);
+  }
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'tl-chip-close';
+  closeBtn.title = 'Remove soft lock';
+  closeBtn.textContent = '×';
+  closeBtn.addEventListener('click', () => {
     try { chrome.runtime.sendMessage({ type: 'REMOVE_SOFT_LOCK' }); } catch {}
     hideSoftLockChip();
     removeLockFavicon();
   });
+  chip.appendChild(closeBtn);
+
+  const el = document.createElement('div');
+  el.id = '__tab-anchor-chip__';
+  el.appendChild(chip);
+  document.body.appendChild(el);
 }
 
 function hideSoftLockChip() {
