@@ -130,7 +130,9 @@ function render() {
 function updateSelectionUI() {
   const count = selectedIds.size;
   document.getElementById('selected-count').textContent = count;
+  document.getElementById('open-count').textContent = count;
   document.getElementById('btn-delete-selected').classList.toggle('hidden', count === 0);
+  document.getElementById('btn-open-selected').classList.toggle('hidden', count === 0);
 
   const checkboxes = [...document.querySelectorAll('.row-checkbox')];
   const total   = checkboxes.length;
@@ -305,15 +307,38 @@ async function importData(file) {
     const raw      = JSON.parse(await file.text());
     const incoming = Array.isArray(raw) ? raw : (raw.entries ?? []);
     if (!Array.isArray(incoming)) throw new Error('bad format');
-    const { tabHistory = [] } = await chrome.storage.local.get('tabHistory');
+    const { tabHistory = [], lockedTabs = {} } = await chrome.storage.local.get(['tabHistory', 'lockedTabs']);
     const existing = new Set(tabHistory.map(e => e.id));
     const added    = incoming.filter(e => e?.id && e?.url && !existing.has(e.id));
     const merged   = [...added, ...tabHistory].slice(0, LIMIT);
-    await chrome.storage.local.set({ tabHistory: merged });
-    toast(`Imported ${added.length} new ${added.length === 1 ? 'entry' : 'entries'}`);
+
+    // Reconcile: mark imported "active" entries as closed if no matching open locked tab exists here
+    const activeHere = new Set(Object.values(lockedTabs).map(ld => ld.historyId).filter(Boolean));
+    const now = Date.now();
+    let reconciled = 0;
+    const finalHistory = merged.map(e => {
+      if (!e.unlockedAt && !activeHere.has(e.id)) {
+        reconciled++;
+        return { ...e, unlockedAt: now };
+      }
+      return e;
+    });
+
+    await chrome.storage.local.set({ tabHistory: finalHistory });
+    const msg = reconciled > 0
+      ? `Imported ${added.length} entr${added.length === 1 ? 'y' : 'ies'}, marked ${reconciled} inactive`
+      : `Imported ${added.length} new ${added.length === 1 ? 'entry' : 'entries'}`;
+    toast(msg);
   } catch {
     toast('Import failed — invalid file', true);
   }
+}
+
+async function openSelected() {
+  const entries = allEntries.filter(e => selectedIds.has(e.id));
+  if (entries.length === 0) return;
+  for (const e of entries) await chrome.tabs.create({ url: e.url });
+  toast(`Opened ${entries.length} tab${entries.length === 1 ? '' : 's'}`);
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -368,6 +393,7 @@ document.querySelectorAll('input[name="link-behavior"]').forEach(r =>
 );
 
 document.getElementById('search').addEventListener('input', e => { query = e.target.value; selectedIds.clear(); render(); });
+document.getElementById('btn-open-selected').addEventListener('click', openSelected);
 document.getElementById('btn-delete-selected').addEventListener('click', deleteSelected);
 document.getElementById('btn-export').addEventListener('click', exportData);
 document.getElementById('btn-clear').addEventListener('click', clearAll);
