@@ -3,6 +3,7 @@
 const LIMIT = 1000;
 let allEntries = [];
 let query = '';
+let selectedIds = new Set();
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 
@@ -111,6 +112,8 @@ function render() {
     document.getElementById('empty-msg').textContent = allEntries.length === 0
       ? 'No history yet. Lock a tab to start tracking.'
       : 'No entries match your filter.';
+    selectedIds.clear();
+    updateSelectionUI();
     return;
   }
 
@@ -118,11 +121,41 @@ function render() {
   empty.classList.add('hidden');
   tbody.innerHTML = '';
   for (const entry of rows) tbody.appendChild(buildRow(entry));
+  updateSelectionUI();
+}
+
+function updateSelectionUI() {
+  const count = selectedIds.size;
+  document.getElementById('selected-count').textContent = count;
+  document.getElementById('btn-delete-selected').classList.toggle('hidden', count === 0);
+
+  const checkboxes = [...document.querySelectorAll('.row-checkbox')];
+  const total   = checkboxes.length;
+  const checked = checkboxes.filter(cb => cb.checked).length;
+  const selectAll = document.getElementById('select-all');
+  selectAll.checked       = total > 0 && checked === total;
+  selectAll.indeterminate = checked > 0 && checked < total;
 }
 
 function buildRow(entry) {
   const tr = document.createElement('tr');
   if (!entry.unlockedAt) tr.classList.add('row-active');
+  if (selectedIds.has(entry.id)) tr.classList.add('row-selected');
+
+  // Checkbox
+  const checkTd = document.createElement('td');
+  checkTd.className = 'col-check';
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.className = 'row-checkbox';
+  checkbox.dataset.id = entry.id;
+  checkbox.checked = selectedIds.has(entry.id);
+  checkbox.addEventListener('change', () => {
+    if (checkbox.checked) { selectedIds.add(entry.id);    tr.classList.add('row-selected'); }
+    else                  { selectedIds.delete(entry.id); tr.classList.remove('row-selected'); }
+    updateSelectionUI();
+  });
+  checkTd.appendChild(checkbox);
 
   // Site
   const siteTd = document.createElement('td');
@@ -214,7 +247,7 @@ function buildRow(entry) {
   del.addEventListener('click', () => deleteEntry(entry.id));
   actionsTd.appendChild(del);
 
-  tr.append(siteTd, nameTd, modeTd, groupTd, lockedTd, unlockedTd, actionsTd);
+  tr.append(checkTd, siteTd, nameTd, modeTd, groupTd, lockedTd, unlockedTd, actionsTd);
   return tr;
 }
 
@@ -228,12 +261,22 @@ async function deleteEntry(id) {
 
 async function clearAll() {
   const { tabHistory = [] } = await chrome.storage.local.get('tabHistory');
-  const active   = tabHistory.filter(e => !e.unlockedAt);
-  const toDelete = tabHistory.filter(e =>  e.unlockedAt);
-  if (toDelete.length === 0) { toast('Nothing to clear — all entries are active'); return; }
-  if (!confirm(`Delete ${toDelete.length} closed session${toDelete.length === 1 ? '' : 's'}? Active locks will not be affected.`)) return;
-  await chrome.storage.local.set({ tabHistory: active });
+  const toKeep   = tabHistory.filter(e => !e.unlockedAt || e.rename);
+  const toDelete = tabHistory.filter(e =>  e.unlockedAt && !e.rename);
+  if (toDelete.length === 0) { toast('Nothing to clear — all entries are active or have custom names'); return; }
+  if (!confirm(`Delete ${toDelete.length} closed session${toDelete.length === 1 ? '' : 's'}? Active locks and custom-named entries will not be affected.`)) return;
+  await chrome.storage.local.set({ tabHistory: toKeep });
   toast(`Cleared ${toDelete.length} entr${toDelete.length === 1 ? 'y' : 'ies'}`);
+}
+
+async function deleteSelected() {
+  const count = selectedIds.size;
+  if (count === 0) return;
+  if (!confirm(`Delete ${count} selected entr${count === 1 ? 'y' : 'ies'}?`)) return;
+  const { tabHistory = [] } = await chrome.storage.local.get('tabHistory');
+  await chrome.storage.local.set({ tabHistory: tabHistory.filter(e => !selectedIds.has(e.id)) });
+  selectedIds.clear();
+  toast(`Deleted ${count} entr${count === 1 ? 'y' : 'ies'}`);
 }
 
 function exportData() {
@@ -312,9 +355,19 @@ document.querySelectorAll('.theme-card').forEach(card => {
 document.getElementById('toggle-banners').addEventListener('change', e => saveSetting('showBanners', e.target.checked));
 document.getElementById('toggle-chip').addEventListener('change',    e => saveSetting('showChip',    e.target.checked));
 
-document.getElementById('search').addEventListener('input', e => { query = e.target.value; render(); });
+document.getElementById('search').addEventListener('input', e => { query = e.target.value; selectedIds.clear(); render(); });
+document.getElementById('btn-delete-selected').addEventListener('click', deleteSelected);
 document.getElementById('btn-export').addEventListener('click', exportData);
 document.getElementById('btn-clear').addEventListener('click', clearAll);
+document.getElementById('select-all').addEventListener('change', e => {
+  document.querySelectorAll('.row-checkbox').forEach(cb => {
+    cb.checked = e.target.checked;
+    const row = cb.closest('tr');
+    if (e.target.checked) { selectedIds.add(cb.dataset.id);    row?.classList.add('row-selected'); }
+    else                  { selectedIds.delete(cb.dataset.id); row?.classList.remove('row-selected'); }
+  });
+  updateSelectionUI();
+});
 document.getElementById('btn-import').addEventListener('click', () => document.getElementById('file-input').click());
 document.getElementById('file-input').addEventListener('change', e => {
   if (e.target.files[0]) importData(e.target.files[0]);

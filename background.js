@@ -561,7 +561,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 });
 
 // When a tab is closed, clean up state.
-// For hard-locked tabs, reopen the tab in the same window (unless the whole window is closing).
+// For locked tabs (hard or soft), reopen the tab at the pinned URL (unless the whole window is closing).
 chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
   const { lockedTabs = {} } = await chrome.storage.local.get('lockedTabs');
   const lockData = lockedTabs[String(tabId)];
@@ -570,11 +570,11 @@ chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
   delete lockedTabs[String(tabId)];
   await chrome.storage.local.set({ lockedTabs });
 
-  if (removeInfo.isWindowClosing || lockData.mode !== 'hard') return;
+  if (removeInfo.isWindowClosing) return;
 
   try {
     const newTab = await chrome.tabs.create({ url: lockData.lockedUrl, windowId: removeInfo.windowId });
-    await lockTab(newTab.id, lockData.lockedUrl, 'hard');
+    await lockTab(newTab.id, lockData.lockedUrl, lockData.mode);
 
     // Restore rename and group into the new lock entry
     const ld = await getLockData(newTab.id);

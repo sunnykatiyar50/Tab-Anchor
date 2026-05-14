@@ -257,12 +257,27 @@ main {
 .history-table td { padding: 10px 14px; vertical-align: middle; }
 
 /* Columns */
-.col-site    { width: 34%; }
-.col-name    { width: 14%; }
+.col-check   { width: 3%;  text-align: center; }
+.col-site    { width: 33%; }
+.col-name    { width: 13%; }
 .col-mode    { width: 7%;  }
-.col-group   { width: 12%; }
+.col-group   { width: 11%; }
 .col-time    { width: 11%; font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
 .col-actions { width: 4%;  text-align: right; }
+
+.row-checkbox,
+#select-all { cursor: pointer; width: 14px; height: 14px; accent-color: #F59E0B; }
+
+.history-table tbody tr.row-selected       { background: #fffbeb; }
+.history-table tbody tr.row-selected:hover { background: #fef3c7; }
+
+[data-theme="dark"] .history-table tbody tr.row-selected       { background: #1c1608; }
+[data-theme="dark"] .history-table tbody tr.row-selected:hover { background: #272010; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .history-table tbody tr.row-selected       { background: #1c1608; }
+  :root:not([data-theme="light"]) .history-table tbody tr.row-selected:hover { background: #272010; }
+}
 
 .site-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 

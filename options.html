@@ -18,6 +18,7 @@
       </div>
       <div class="toolbar" id="history-toolbar">
         <input type="search" id="search" placeholder="Filter by URL, name, or group…" autocomplete="off">
+        <button id="btn-delete-selected" class="btn btn-danger hidden">Delete Selected (<span id="selected-count">0</span>)</button>
         <button id="btn-import" class="btn">Import</button>
         <button id="btn-export" class="btn">Export</button>
         <button id="btn-clear" class="btn btn-danger">Clear All</button>
@@ -48,6 +49,7 @@
       <table id="tbl" class="history-table hidden">
         <thead>
           <tr>
+            <th class="col-check"><input type="checkbox" id="select-all" title="Select all"></th>
             <th class="col-site">Site</th>
             <th class="col-name">Custom Name</th>
             <th class="col-mode">Mode</th>
