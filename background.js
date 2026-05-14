@@ -499,19 +499,42 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     if (normalizeUrl(changeInfo.url) === normalizeUrl(lockData.lockedUrl)) return;
     console.log('[TabAnchor] Phase1 intercept', { tabId, mode: lockData.mode, url: changeInfo.url });
     if (lockData.mode === 'hard') {
-      // Block: record the attempted URL and redirect back
-      await setAttemptedUrl(tabId, changeInfo.url);
+      const { settings = {} } = await chrome.storage.local.get('settings');
+      const linkBehavior = settings.linkBehavior ?? 'block';
+
+      // Always redirect the locked tab back to its pinned URL
       chrome.tabs.update(tabId, { url: lockData.lockedUrl });
-      // Also try sending immediately in case status=complete won't re-fire
-      try {
-        await chrome.tabs.sendMessage(tabId, {
-          type: 'SHOW_WARNING',
-          attemptedUrl: changeInfo.url,
-          lockedUrl: lockData.lockedUrl
-        });
-        console.log('[TabAnchor] Phase1 SHOW_WARNING sent');
-      } catch (e) {
-        console.log('[TabAnchor] Phase1 SHOW_WARNING failed (will rely on Phase2/onLoad)', e?.message);
+
+      if (linkBehavior === 'block') {
+        // Record the attempted URL and show warning banner
+        await setAttemptedUrl(tabId, changeInfo.url);
+        try {
+          await chrome.tabs.sendMessage(tabId, {
+            type: 'SHOW_WARNING',
+            attemptedUrl: changeInfo.url,
+            lockedUrl: lockData.lockedUrl
+          });
+          console.log('[TabAnchor] Phase1 SHOW_WARNING sent');
+        } catch (e) {
+          console.log('[TabAnchor] Phase1 SHOW_WARNING failed (will rely on Phase2/onLoad)', e?.message);
+        }
+      } else {
+        // Open the link in a new tab instead of blocking
+        try {
+          const newTab = await chrome.tabs.create({
+            url: changeInfo.url,
+            windowId: tab.windowId,
+            index: tab.index + 1,
+          });
+          if (
+            linkBehavior === 'new-tab-same-group' &&
+            chrome.tabGroups &&
+            lockData.groupId != null &&
+            lockData.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE
+          ) {
+            try { await chrome.tabs.group({ tabIds: [newTab.id], groupId: lockData.groupId }); } catch {}
+          }
+        } catch {}
       }
     }
     // Soft lock: allow navigation freely — chip is updated in Phase 2

@@ -550,6 +550,48 @@ main {
 .tp-system .tp-header    { background: linear-gradient(135deg, #334155 50%, #0f172a 50%); }
 .tp-system .tp-row       { background: linear-gradient(135deg, #e2e8f0 50%, #334155 50%); }
 
+/* ── Link behavior radio group ──────────────────────────────────────────────── */
+
+.link-behavior-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.lbo {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+  background: var(--surface-alt);
+  user-select: none;
+}
+
+.lbo:hover { border-color: #94a3b8; }
+
+.lbo:has(input:checked) {
+  border-color: #F59E0B;
+  background: var(--surface);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+}
+
+.lbo input[type="radio"] {
+  margin-top: 2px;
+  accent-color: #F59E0B;
+  flex-shrink: 0;
+}
+
+.lbo-inner { display: flex; flex-direction: column; gap: 2px; }
+
+.lbo-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.lbo:has(input:checked) .lbo-title { color: #d97706; }
+.lbo-desc  { font-size: 11px; color: var(--text-secondary); }
+
 /* ── Toast ──────────────────────────────────────────────────────────────────── */
 
 .toast {

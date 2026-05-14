@@ -1,6 +1,6 @@
 {
   "name": "tab-anchor",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Browser extension to anchor, rename, and protect tabs",
   "private": true,
   "scripts": {

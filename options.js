@@ -17,10 +17,13 @@ async function loadSettings() {
     card.querySelector('input').checked = card.dataset.value === theme;
   });
 
-  const showBanners = settings.showBanners !== false;
-  const showChip    = settings.showChip    !== false;
+  const showBanners  = settings.showBanners  !== false;
+  const showChip     = settings.showChip     !== false;
+  const linkBehavior = settings.linkBehavior ?? 'block';
   document.getElementById('toggle-banners').checked = showBanners;
   document.getElementById('toggle-chip').checked    = showChip;
+  const lboRadio = document.querySelector(`input[name="link-behavior"][value="${linkBehavior}"]`);
+  if (lboRadio) lboRadio.checked = true;
 }
 
 function applyTheme(theme) {
@@ -354,6 +357,9 @@ document.querySelectorAll('.theme-card').forEach(card => {
 
 document.getElementById('toggle-banners').addEventListener('change', e => saveSetting('showBanners', e.target.checked));
 document.getElementById('toggle-chip').addEventListener('change',    e => saveSetting('showChip',    e.target.checked));
+document.querySelectorAll('input[name="link-behavior"]').forEach(r =>
+  r.addEventListener('change', e => { if (e.target.checked) saveSetting('linkBehavior', e.target.value); })
+);
 
 document.getElementById('search').addEventListener('input', e => { query = e.target.value; selectedIds.clear(); render(); });
 document.getElementById('btn-delete-selected').addEventListener('click', deleteSelected);

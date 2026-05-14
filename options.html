@@ -144,6 +144,36 @@
           </label>
         </div>
 
+        <div class="settings-row settings-row-bordered">
+          <div class="settings-label">
+            <span class="settings-label-main">Hard lock — link behavior</span>
+            <span class="settings-label-desc">What happens when a link is clicked on a hard-locked tab</span>
+          </div>
+          <div class="link-behavior-group">
+            <label class="lbo">
+              <input type="radio" name="link-behavior" value="block">
+              <span class="lbo-inner">
+                <span class="lbo-title">Block</span>
+                <span class="lbo-desc">Show warning, stay on pinned URL</span>
+              </span>
+            </label>
+            <label class="lbo">
+              <input type="radio" name="link-behavior" value="new-tab-same-group">
+              <span class="lbo-inner">
+                <span class="lbo-title">New tab · same group</span>
+                <span class="lbo-desc">Open link in a new tab inside the same group</span>
+              </span>
+            </label>
+            <label class="lbo">
+              <input type="radio" name="link-behavior" value="new-tab-new-group">
+              <span class="lbo-inner">
+                <span class="lbo-title">New tab · no group</span>
+                <span class="lbo-desc">Open link in a new tab outside any group</span>
+              </span>
+            </label>
+          </div>
+        </div>
+
       </div>
 
     </div>
