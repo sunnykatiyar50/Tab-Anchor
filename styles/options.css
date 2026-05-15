@@ -401,6 +401,8 @@ a.site-url:hover {
   border-radius: 10px;
   box-shadow: 0 1px 6px var(--card-shadow);
   transition: background 0.20s;
+  max-width: 480px;
+  margin: 0 auto;
 }
 
 .empty-icon { font-size: 44px; margin-bottom: 14px; }

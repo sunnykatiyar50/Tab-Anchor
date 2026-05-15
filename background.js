@@ -353,7 +353,7 @@ async function reconcileLockedTabs() {
       const tab = await chrome.tabs.get(tabId);
       if (normalizeUrl(tab.url) !== normalizeUrl(lockData.lockedUrl)) {
         updated[tabIdStr] = { ...lockData, attemptedUrl: tab.url };
-        chrome.tabs.update(tabId, { url: lockData.lockedUrl });
+        chrome.tabs.update(tabId, { url: lockData.lockedUrl }).catch(() => {});
       }
     } catch {
       // Tab no longer exists
@@ -502,10 +502,9 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       const { settings = {} } = await chrome.storage.local.get('settings');
       const linkBehavior = settings.linkBehavior ?? 'block';
 
-      // Always redirect the locked tab back to its pinned URL
-      chrome.tabs.update(tabId, { url: lockData.lockedUrl });
-
       if (linkBehavior === 'block') {
+        // Redirect the locked tab back to its pinned URL
+        chrome.tabs.update(tabId, { url: lockData.lockedUrl }).catch(() => {});
         // Record the attempted URL and show warning banner
         await setAttemptedUrl(tabId, changeInfo.url);
         try {
