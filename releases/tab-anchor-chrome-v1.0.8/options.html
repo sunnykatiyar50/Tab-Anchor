@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Tab Anchor — History</title>
+  <link rel="stylesheet" href="styles/options.css">
+</head>
+<body>
+  <header class="page-header">
+    <div class="header-inner">
+      <div class="brand">
+        <img src="icons/icon48.png" width="32" height="32" alt="">
+        <div>
+          <h1>Tab Anchor</h1>
+          <span class="subtitle" id="header-subtitle">Locked Tab History</span>
+        </div>
+      </div>
+      <div class="toolbar" id="history-toolbar">
+        <input type="search" id="search" placeholder="Filter by URL, name, or group…" autocomplete="off">
+        <button id="btn-open-selected" class="btn hidden">Open Selected (<span id="open-count">0</span>)</button>
+        <button id="btn-delete-selected" class="btn btn-danger hidden">Delete Selected (<span id="selected-count">0</span>)</button>
+        <button id="btn-import" class="btn">Import</button>
+        <button id="btn-export" class="btn">Export</button>
+        <button id="btn-clear" class="btn btn-danger">Clear All</button>
+        <input type="file" id="file-input" accept=".json" hidden>
+      </div>
+    </div>
+    <nav class="tab-nav">
+      <div class="tab-nav-inner">
+        <button class="tab-btn active" data-tab="history">History</button>
+        <button class="tab-btn" data-tab="settings">Settings</button>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <!-- ── History pane ──────────────────────────────────────────────────── -->
+    <div id="pane-history" class="pane">
+      <div id="stats" class="stats-bar hidden">
+        <span id="stat-total"></span>
+        <span id="stat-active"></span>
+      </div>
+
+      <div id="empty" class="empty-state">
+        <div class="empty-icon">🔒</div>
+        <p id="empty-msg">No history yet. Lock a tab to start tracking.</p>
+      </div>
+
+      <table id="tbl" class="history-table hidden">
+        <thead>
+          <tr>
+            <th class="col-check"><input type="checkbox" id="select-all" title="Select all"></th>
+            <th class="col-site">Site</th>
+            <th class="col-name">Custom Name</th>
+            <th class="col-mode">Mode</th>
+            <th class="col-group">Group</th>
+            <th class="col-time">Locked</th>
+            <th class="col-time">Unlocked</th>
+            <th class="col-actions"></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- ── Settings pane ─────────────────────────────────────────────────── -->
+    <div id="pane-settings" class="pane hidden">
+
+      <div class="settings-card">
+        <div class="settings-section-title">Appearance</div>
+
+        <div class="settings-row">
+          <div class="settings-label">
+            <span class="settings-label-main">Theme</span>
+            <span class="settings-label-desc">Choose how this page looks</span>
+          </div>
+          <div class="theme-cards">
+
+            <label class="theme-card" data-value="system">
+              <div class="tp tp-system">
+                <div class="tp-header"></div>
+                <div class="tp-body">
+                  <div class="tp-row"></div>
+                  <div class="tp-row tp-short"></div>
+                  <div class="tp-row"></div>
+                </div>
+              </div>
+              <span class="theme-card-label">System</span>
+              <input type="radio" name="theme" value="system" hidden>
+            </label>
+
+            <label class="theme-card" data-value="light">
+              <div class="tp tp-light">
+                <div class="tp-header"></div>
+                <div class="tp-body">
+                  <div class="tp-row"></div>
+                  <div class="tp-row tp-short"></div>
+                  <div class="tp-row"></div>
+                </div>
+              </div>
+              <span class="theme-card-label">Light</span>
+              <input type="radio" name="theme" value="light" hidden>
+            </label>
+
+            <label class="theme-card" data-value="dark">
+              <div class="tp tp-dark">
+                <div class="tp-header"></div>
+                <div class="tp-body">
+                  <div class="tp-row"></div>
+                  <div class="tp-row tp-short"></div>
+                  <div class="tp-row"></div>
+                </div>
+              </div>
+              <span class="theme-card-label">Dark</span>
+              <input type="radio" name="theme" value="dark" hidden>
+            </label>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-card" style="margin-top:16px;">
+        <div class="settings-section-title">Behaviour</div>
+
+        <div class="settings-row settings-row-toggle">
+          <div class="settings-label">
+            <span class="settings-label-main">Navigation &amp; close banners</span>
+            <span class="settings-label-desc">Show a banner when navigation is blocked or a closed tab is restored</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="toggle-banners">
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+
+        <div class="settings-row settings-row-toggle settings-row-bordered">
+          <div class="settings-label">
+            <span class="settings-label-main">Soft lock chip</span>
+            <span class="settings-label-desc">Show a floating pill at the bottom of the page when a tab is soft locked</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="toggle-chip">
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+
+        <div class="settings-row settings-row-bordered">
+          <div class="settings-label">
+            <span class="settings-label-main">Hard lock — link behavior</span>
+            <span class="settings-label-desc">What happens when a link is clicked on a hard-locked tab</span>
+          </div>
+          <div class="link-behavior-group">
+            <label class="lbo">
+              <input type="radio" name="link-behavior" value="block">
+              <span class="lbo-inner">
+                <span class="lbo-title">Block</span>
+                <span class="lbo-desc">Show warning, stay on pinned URL</span>
+              </span>
+            </label>
+            <label class="lbo">
+              <input type="radio" name="link-behavior" value="new-tab-same-group">
+              <span class="lbo-inner">
+                <span class="lbo-title">New tab · same group</span>
+                <span class="lbo-desc">Open link in a new tab inside the same group</span>
+              </span>
+            </label>
+            <label class="lbo">
+              <input type="radio" name="link-behavior" value="new-tab-new-group">
+              <span class="lbo-inner">
+                <span class="lbo-title">New tab · no group</span>
+                <span class="lbo-desc">Open link in a new tab outside any group</span>
+              </span>
+            </label>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+
+  <div id="toast" class="toast"></div>
+  <script src="options.js"></script>
+</body>
+</html>

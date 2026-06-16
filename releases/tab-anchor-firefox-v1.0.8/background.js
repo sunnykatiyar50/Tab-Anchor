@@ -123,16 +123,11 @@ function isLockableUrl(url) {
 
 function drawLockIcon(ctx, size, state) {
   const s = size;
-  const isLocked   = state === 'locked';
-  const isSoft     = state === 'soft';
-  const isUnlocked = !isLocked && !isSoft;
-  // White-filled lock for every state; the accent (border + shackle + keyhole)
-  // signals the mode: hard = red, soft = yellow, unlocked = white with no border.
-  const accent       = isLocked ? '#DC2626' : isSoft ? '#EAB308' : '#FFFFFF';
-  const bodyColor    = '#FFFFFF';
-  const shackleColor = accent;
-  const keyholeColor = accent;
-  const borderColor  = isUnlocked ? null : accent;
+  const isLocked = state === 'locked';
+  const isSoft   = state === 'soft';
+  const bodyColor    = isLocked ? '#F59E0B' : isSoft ? '#FCD34D' : '#22D3EE';
+  const shackleColor = isLocked ? '#B45309' : isSoft ? '#F59E0B' : '#0891B2';
+  const keyholeColor = isLocked ? '#92400E' : isSoft ? '#D97706' : '#0E7490';
 
   ctx.clearRect(0, 0, s, s);
 
@@ -141,24 +136,18 @@ function drawLockIcon(ctx, size, state) {
   ctx.shadowBlur    = s * 0.12;
   ctx.shadowOffsetY = s * 0.04;
 
-  // Lock body — white fill, with a coloured border on the soft/hard locks
+  // Lock body
   const bw = s * 0.68;
   const bh = s * 0.50;
   const bx = (s - bw) / 2;
   const by = s * 0.44;
   const br = s * 0.09;
+  ctx.fillStyle = bodyColor;
   ctx.beginPath();
   ctx.roundRect(bx, by, bw, bh, br);
-  ctx.fillStyle = bodyColor;
   ctx.fill();
 
   ctx.shadowColor = 'transparent'; // clear shadow before detail layers
-
-  if (borderColor) {
-    ctx.strokeStyle = borderColor;
-    ctx.lineWidth = Math.max(1.5, s * 0.08);
-    ctx.stroke();
-  }
 
   // Keyhole
   ctx.fillStyle = keyholeColor;
@@ -194,34 +183,20 @@ function drawLockIcon(ctx, size, state) {
 // Toolbar icon — set per-tab via OffscreenCanvas
 // ============================================================
 
-function renderIconImageData(state) {
-  const imageData = {};
-  for (const size of [16, 32, 48, 128]) {
-    const canvas = new OffscreenCanvas(size, size);
-    const ctx = canvas.getContext('2d');
-    drawLockIcon(ctx, size, state);
-    imageData[size] = ctx.getImageData(0, 0, size, size);
-  }
-  return imageData;
-}
-
-// Set the GLOBAL default toolbar icon (no tabId). The manifest's default_icon
-// points at static PNGs from the old cyan design, which flash before a per-tab
-// icon is drawn. Overriding the default at runtime makes every tab show the
-// current 'unlocked' design instead.
-async function setDefaultIcon() {
-  try {
-    await chrome.action.setIcon({ imageData: renderIconImageData('unlocked') });
-  } catch { /* canvas/action unavailable */ }
-}
-
 async function updateToolbarIcon(tabId) {
   try {
     const lockData = await getLockData(tabId);
     const state = lockData?.mode === 'hard' ? 'locked'
                 : lockData?.mode === 'soft' ? 'soft'
                 : 'unlocked';
-    await chrome.action.setIcon({ imageData: renderIconImageData(state), tabId });
+    const imageData = {};
+    for (const size of [16, 32, 48, 128]) {
+      const canvas = new OffscreenCanvas(size, size);
+      const ctx = canvas.getContext('2d');
+      drawLockIcon(ctx, size, state);
+      imageData[size] = ctx.getImageData(0, 0, size, size);
+    }
+    await chrome.action.setIcon({ imageData, tabId });
     await chrome.action.setTitle({
       title: state === 'locked' ? 'Tab Anchor — Hard locked (click to unlock)'
            : state === 'soft'   ? 'Tab Anchor — Soft locked (click for hard lock)'
@@ -239,79 +214,52 @@ async function updateToolbarIcon(tabId) {
 
 const _faviconCache = new Map();
 
-// Badge styling per lock mode (same corner; distinguished by colour + shackle):
-//  - hard: solid red,    white shackle, CLOSED  (strong, enforced lock)
-//  - soft: solid yellow, white shackle, OPEN    (loose, advisory lock)
-const BADGE_STYLE = {
-  hard: { body: '#DC2626', shackle: '#FFFFFF', corner: 'br', open: false },
-  soft: { body: '#EAB308', shackle: '#FFFFFF', corner: 'br', open: true  },
-};
-
-async function generateLockedFavicon(originalFaviconUrl, mode = 'hard') {
-  const style = BADGE_STYLE[mode] ?? BADGE_STYLE.hard;
-  const cacheKey = `${mode}|${originalFaviconUrl ?? ''}`;
-  if (_faviconCache.has(cacheKey)) {
-    return _faviconCache.get(cacheKey);
-  }
-
-  // We can only badge a favicon we can actually draw. If the real icon can't be
-  // fetched/decoded (e.g. some .ico files, or no URL available), return null so
-  // the content script leaves the page's own favicon untouched — never replace a
-  // real logo with a blank placeholder.
-  if (!originalFaviconUrl) return null;
-
-  let bitmap;
-  try {
-    const response = await fetch(originalFaviconUrl);
-    const blob = await response.blob();
-    bitmap = await createImageBitmap(blob);
-  } catch {
-    return null;
+async function generateLockedFavicon(originalFaviconUrl) {
+  if (originalFaviconUrl && _faviconCache.has(originalFaviconUrl)) {
+    return _faviconCache.get(originalFaviconUrl);
   }
 
   const size = 32;
   const canvas = new OffscreenCanvas(size, size);
   const ctx = canvas.getContext('2d');
-  ctx.drawImage(bitmap, 0, 0, size, size);
 
-  // Badge corner — left or right edge depending on mode
+  // Draw the original favicon, or a neutral placeholder on failure
+  if (originalFaviconUrl) {
+    try {
+      const response = await fetch(originalFaviconUrl);
+      const blob = await response.blob();
+      const bitmap = await createImageBitmap(blob);
+      ctx.drawImage(bitmap, 0, 0, size, size);
+    } catch {
+      ctx.fillStyle = '#e0e0e0';
+      ctx.fillRect(0, 0, size, size);
+    }
+  } else {
+    ctx.fillStyle = '#e0e0e0';
+    ctx.fillRect(0, 0, size, size);
+  }
+
+  // Semi-transparent dark backdrop for the badge (bottom-right 18×18)
   const bs = 18;
-  const bx = style.corner === 'bl' ? 0 : size - bs;
+  const bx = size - bs;
   const by = size - bs;
-
-  // Semi-transparent dark backdrop for contrast against any favicon
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   ctx.beginPath();
   ctx.arc(bx + bs / 2, by + bs / 2, bs / 2, 0, Math.PI * 2);
   ctx.fill();
 
   // Mini lock body
-  ctx.fillStyle = style.body;
+  ctx.fillStyle = '#FFD54F';
   ctx.beginPath();
   ctx.roundRect(bx + 3.5, by + 8.5, 11, 8, 2);
   ctx.fill();
 
-  // Mini shackle — closed (full arc down both sides) for hard,
-  // open (right leg lifted) for soft.
-  ctx.strokeStyle = style.shackle;
+  // Mini shackle
+  ctx.strokeStyle = '#FFB300';
   ctx.lineWidth = 2.2;
   ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
   ctx.beginPath();
-  if (style.open) {
-    // Open padlock: left leg meets the body, arch over, right leg left hanging
-    // in the air (a visible gap above the body) so the lock reads as unlatched.
-    ctx.moveTo(bx + 5, by + 8.5);
-    ctx.lineTo(bx + 5, by + 6.5);
-    ctx.arc(bx + 9, by + 6.5, 4, Math.PI, 0);
-    // current point is the right end of the arch — no downstroke to the body
-  } else {
-    // Closed padlock: symmetric arch landing on the body on both sides
-    ctx.moveTo(bx + 5, by + 8.5);
-    ctx.lineTo(bx + 5, by + 6.5);
-    ctx.arc(bx + 9, by + 6.5, 4, Math.PI, 0);
-    ctx.lineTo(bx + 13, by + 8.5);
-  }
+  ctx.arc(bx + 9, by + 8.5, 4, Math.PI, 0);
   ctx.stroke();
 
   const blob = await canvas.convertToBlob({ type: 'image/png' });
@@ -320,7 +268,7 @@ async function generateLockedFavicon(originalFaviconUrl, mode = 'hard') {
     reader.onloadend = () => resolve(reader.result);
     reader.readAsDataURL(blob);
   });
-  _faviconCache.set(cacheKey, dataUrl);
+  if (originalFaviconUrl) _faviconCache.set(originalFaviconUrl, dataUrl);
   return dataUrl;
 }
 
@@ -398,38 +346,56 @@ async function toggleLock(tabId, url, pageTitle = null) {
 // ============================================================
 
 async function reconcileLockedTabs() {
-  // At browser startup the previous session's tab IDs are meaningless — and on
-  // some browsers (Firefox) they are reused for *different* restored tabs. So we
-  // must NOT trust the old lockedTabs keys: doing so makes a tab appear locked to
-  // another tab's URL. Discard all tab-ID bindings and rebuild them purely by
-  // matching each live tab's actual URL against the persistent lockedUrls index.
-  // lockedUrls is preserved (it's only cleared by an explicit unlock).
-  const { lockedUrls = {} } = await chrome.storage.local.get('lockedUrls');
-  const rebuilt = {};
-  const usedUrls = new Set();
+  const { lockedTabs = {}, lockedUrls = {} } = await chrome.storage.local.get(['lockedTabs', 'lockedUrls']);
+  const updated = { ...lockedTabs };
+  const orphanedUrls = new Set();
 
-  const tabs = await chrome.tabs.query({});
-  for (const tab of tabs) {
-    if (!tab.id || !tab.url) continue;            // unloaded/discarded tabs recover later via GET_LOCK_STATUS
-    const normUrl = normalizeUrl(tab.url);
-    if (usedUrls.has(normUrl)) continue;          // bind at most one tab per locked URL
-    const stored = lockedUrls[normUrl];
-    if (!stored) continue;
-
-    // Fresh history entry — the prior session's entry is already closed.
-    const historyId = await addHistoryEntry({
-      url: stored.lockedUrl,
-      mode: stored.mode,
-      pageTitle: stored.pageTitle ?? null,
-      groupInfo: stored.groupInfo ?? null,
-    });
-    rebuilt[String(tab.id)] = { ...stored, historyId, attemptedUrl: null, showCloseWarning: false };
-    usedUrls.add(normUrl);
+  for (const [tabIdStr, lockData] of Object.entries(lockedTabs)) {
+    const tabId = Number(tabIdStr);
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      if (normalizeUrl(tab.url) !== normalizeUrl(lockData.lockedUrl)) {
+        updated[tabIdStr] = { ...lockData, attemptedUrl: tab.url };
+        chrome.tabs.update(tabId, { url: lockData.lockedUrl }).catch(() => {});
+      }
+    } catch {
+      // Tab no longer exists — queue its URL for rematch against restored tabs
+      delete updated[tabIdStr];
+      orphanedUrls.add(normalizeUrl(lockData.lockedUrl));
+    }
   }
 
-  // Replace stale tab-ID bindings wholesale. Any tab not covered here (URL not
-  // yet known at startup) is rebound later by recoverLockByUrl on page load.
-  await chrome.storage.local.set({ lockedTabs: rebuilt });
+  // After a browser restart tabs get new IDs but restore to their previous URLs.
+  // Use lockedUrls (the persistent URL index) as the authoritative source for rematch.
+  if (orphanedUrls.size > 0) {
+    const allTabs = await chrome.tabs.query({});
+    for (const tab of allTabs) {
+      if (!tab.id || !tab.url) continue;
+      if (updated[String(tab.id)]) continue;
+      const normUrl = normalizeUrl(tab.url);
+      if (orphanedUrls.has(normUrl) && lockedUrls[normUrl]) {
+        const stored = lockedUrls[normUrl];
+        // Issue a fresh history entry so unlock in the new session doesn't
+        // overwrite the already-closed record from the prior session.
+        const historyId = await addHistoryEntry({
+          url: stored.lockedUrl,
+          mode: stored.mode,
+          pageTitle: stored.pageTitle ?? null,
+          groupInfo: stored.groupInfo ?? null,
+        });
+        updated[String(tab.id)] = { ...stored, historyId };
+        orphanedUrls.delete(normUrl);
+      }
+    }
+  }
+
+  // Keep lockedUrls in sync — only retain entries that are still actively locked
+  const activeLockedUrls = {};
+  for (const ld of Object.values(updated)) {
+    activeLockedUrls[normalizeUrl(ld.lockedUrl)] = ld;
+  }
+
+  await chrome.storage.local.set({ lockedTabs: updated, lockedUrls: activeLockedUrls });
 }
 
 async function updateAllTabIcons() {
@@ -440,70 +406,16 @@ async function updateAllTabIcons() {
 }
 
 // ============================================================
-// URL-based lock recovery — the reliable rematch path.
-//
-// onStartup/reconcile can't be trusted to see restored tabs' final URLs
-// (Chrome lazy-loads/discards restored tabs, so chrome.tabs.query returns
-// incomplete URLs at startup). Instead, recover when the content script
-// asks for status on page load — at that point the tab's real URL is known.
-//
-// Given a tabId and its actual URL, if that URL has a persistent lock in
-// lockedUrls and isn't already held by another *live* tab, bind the lock to
-// this tab with a fresh history entry. Returns the lock data, or null.
-// ============================================================
-
-async function recoverLockByUrl(tabId, url) {
-  if (tabId == null || !url) return null;
-  const normUrl = normalizeUrl(url);
-  const { lockedUrls = {}, lockedTabs = {} } = await chrome.storage.local.get(['lockedUrls', 'lockedTabs']);
-  const stored = lockedUrls[normUrl];
-  if (!stored) return null;
-
-  // Don't steal the lock if another tab already holds this URL and still exists
-  // (e.g. the user deliberately opened a second tab to the same locked URL).
-  for (const [otherIdStr, ld] of Object.entries(lockedTabs)) {
-    if (Number(otherIdStr) === tabId) continue;
-    if (normalizeUrl(ld.lockedUrl) !== normUrl) continue;
-    const stillAlive = await chrome.tabs.get(Number(otherIdStr)).then(() => true).catch(() => false);
-    if (stillAlive) return null;
-  }
-
-  // Re-check just before writing: the other recovery path (GET_LOCK_STATUS vs
-  // onUpdated) may have bound this tab during our awaits above. If so, reuse it
-  // instead of creating a second history entry.
-  const existing = await getLockData(tabId);
-  if (existing) return existing;
-
-  // Adopt: bind this URL's lock to the current tab. Fresh history entry so we
-  // don't overwrite the prior session's already-closed record.
-  const historyId = await addHistoryEntry({
-    url: stored.lockedUrl,
-    mode: stored.mode,
-    pageTitle: stored.pageTitle ?? null,
-    groupInfo: stored.groupInfo ?? null,
-  });
-  // Clear transient flags from the stored snapshot — the recovered tab is
-  // sitting at its locked URL, so there's no pending navigation or close warning.
-  const recovered = { ...stored, historyId, attemptedUrl: null, showCloseWarning: false };
-  await setLockData(tabId, recovered);
-  await updateToolbarIcon(tabId);
-  await updateContextMenuTitles(tabId);
-  return recovered;
-}
-
-// ============================================================
 // Event listeners
 // ============================================================
 
 chrome.runtime.onInstalled.addListener(async () => {
   setupContextMenus();
-  await setDefaultIcon();
   await updateAllTabIcons();
 });
 
 chrome.runtime.onStartup.addListener(async () => {
   setupContextMenus();
-  await setDefaultIcon();
   await reconcileLockedTabs();
   await updateAllTabIcons();
 });
@@ -666,12 +578,29 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete') {
     let lockData = await getLockData(tabId);
 
-    // Self-heal after a browser restart: if this tab lost its lock entry (new
-    // tab ID) but its URL is still in the persistent lockedUrls index, rebind it.
-    // The content script's GET_LOCK_STATUS also recovers — whichever runs first
-    // wins; the second sees the lock already set and skips (no duplicate history).
+    // Late session-restore rematch: onStartup may fire before all tabs are ready,
+    // so tabs that weren't visible during reconcileLockedTabs get a second chance here.
+    // Guard: only rematch if no other tab is already actively locked to this URL —
+    // otherwise we'd lock any tab the user deliberately opens to a locked URL.
     if (!lockData && tab.url) {
-      lockData = await recoverLockByUrl(tabId, tab.url);
+      const { lockedUrls = {}, lockedTabs = {} } = await chrome.storage.local.get(['lockedUrls', 'lockedTabs']);
+      const stored = lockedUrls[normalizeUrl(tab.url)];
+      const alreadyActive = stored && Object.values(lockedTabs).some(
+        ld => normalizeUrl(ld.lockedUrl) === normalizeUrl(tab.url)
+      );
+      if (stored && !alreadyActive) {
+        const historyId = await addHistoryEntry({
+          url: stored.lockedUrl,
+          mode: stored.mode,
+          pageTitle: stored.pageTitle ?? null,
+          groupInfo: stored.groupInfo ?? null,
+        });
+        const rematched = { ...stored, historyId };
+        await setLockData(tabId, rematched);
+        lockData = rematched;
+        await updateToolbarIcon(tabId);
+        await updateContextMenuTitles(tabId);
+      }
     }
 
     if (!lockData) return;
@@ -716,16 +645,21 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 // When a tab is closed, clean up state.
 // For locked tabs (hard or soft), reopen the tab at the pinned URL (unless the whole window is closing).
 chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
-  const { lockedTabs = {} } = await chrome.storage.local.get('lockedTabs');
+  const { lockedTabs = {}, lockedUrls = {} } = await chrome.storage.local.get(['lockedTabs', 'lockedUrls']);
   const lockData = lockedTabs[String(tabId)];
   if (!lockData) return;
 
   delete lockedTabs[String(tabId)];
-  await chrome.storage.local.set({ lockedTabs });
-  // lockedUrls is intentionally left intact — it is the persistent index that
-  // survives browser restarts and is only cleared by an explicit unlock.
 
-  if (removeInfo.isWindowClosing) return;
+  if (removeInfo.isWindowClosing) {
+    // Window is closing — remove from lockedUrls too so stale entries don't
+    // cause the late-rematch path to fire on the next restart.
+    delete lockedUrls[normalizeUrl(lockData.lockedUrl)];
+    await chrome.storage.local.set({ lockedTabs, lockedUrls });
+    return;
+  }
+
+  await chrome.storage.local.set({ lockedTabs });
 
   try {
     const newTab = await chrome.tabs.create({ url: lockData.lockedUrl, windowId: removeInfo.windowId });
@@ -779,13 +713,7 @@ async function handleMessage(msg, sender) {
   switch (msg.type) {
     case 'GET_LOCK_STATUS': {
       const tabId = msg.tabId ?? senderTabId;
-      let lockData = await getLockData(tabId);
-      // Self-heal after a browser restart: if this tab has no lock entry but its
-      // URL is in the persistent lockedUrls index, rebind the lock to this tab.
-      if (!lockData) {
-        const url = msg.url ?? sender.tab?.url ?? sender.url ?? null;
-        lockData = await recoverLockByUrl(tabId, url);
-      }
+      const lockData = await getLockData(tabId);
       const tab = lockData ? await chrome.tabs.get(tabId).catch(() => null) : null;
       return {
         locked: !!lockData,
@@ -813,9 +741,7 @@ async function handleMessage(msg, sender) {
     }
 
     case 'GET_FAVICON_DATA': {
-      // Fall back to the sender tab's actual lock mode if the caller didn't specify.
-      const mode = msg.mode ?? (await getLockData(msg.tabId ?? senderTabId))?.mode ?? 'hard';
-      const dataUrl = await generateLockedFavicon(msg.originalFaviconUrl ?? null, mode);
+      const dataUrl = await generateLockedFavicon(msg.originalFaviconUrl ?? null);
       return { faviconDataUrl: dataUrl };
     }
 

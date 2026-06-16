@@ -1,6 +1,6 @@
 {
   "name": "tab-anchor",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Browser extension to lock, anchor, and protect tabs — tab locker, tab pinner, pinned URL guard, tab renamer, close protection for Chrome, Edge, and Firefox",
   "private": true,
   "scripts": {

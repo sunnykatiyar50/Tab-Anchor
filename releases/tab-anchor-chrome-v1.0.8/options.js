@@ -1,0 +1,416 @@
+'use strict';
+
+const LIMIT = 1000;
+let allEntries = [];
+let query = '';
+let selectedIds = new Set();
+
+// ── Theme ─────────────────────────────────────────────────────────────────────
+
+async function loadSettings() {
+  const { settings = {} } = await chrome.storage.local.get('settings');
+
+  const theme = settings.theme ?? 'system';
+  applyTheme(theme);
+  document.querySelectorAll('.theme-card').forEach(card => {
+    card.classList.toggle('selected', card.dataset.value === theme);
+    card.querySelector('input').checked = card.dataset.value === theme;
+  });
+
+  const showBanners  = settings.showBanners  !== false;
+  const showChip     = settings.showChip     !== false;
+  const linkBehavior = settings.linkBehavior ?? 'block';
+  document.getElementById('toggle-banners').checked = showBanners;
+  document.getElementById('toggle-chip').checked    = showChip;
+  const lboRadio = document.querySelector(`input[name="link-behavior"][value="${linkBehavior}"]`);
+  if (lboRadio) lboRadio.checked = true;
+}
+
+function applyTheme(theme) {
+  const root = document.documentElement;
+  if (theme === 'dark')       root.dataset.theme = 'dark';
+  else if (theme === 'light') root.dataset.theme = 'light';
+  else                        delete root.dataset.theme; // 'system' → OS preference
+}
+
+async function saveSetting(key, value) {
+  const { settings = {} } = await chrome.storage.local.get('settings');
+  settings[key] = value;
+  await chrome.storage.local.set({ settings });
+}
+
+async function saveTheme(theme) {
+  await saveSetting('theme', theme);
+  applyTheme(theme);
+  document.querySelectorAll('.theme-card').forEach(card => {
+    card.classList.toggle('selected', card.dataset.value === theme);
+  });
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+
+const SUBTITLES = { history: 'Locked Tab History', settings: 'Settings' };
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === name);
+  });
+  document.querySelectorAll('.pane').forEach(pane => {
+    pane.classList.toggle('hidden', pane.id !== `pane-${name}`);
+  });
+  document.getElementById('history-toolbar').classList.toggle('hidden', name !== 'history');
+  document.getElementById('header-subtitle').textContent = SUBTITLES[name] ?? '';
+}
+
+// ── Data ──────────────────────────────────────────────────────────────────────
+
+async function load() {
+  const { tabHistory = [] } = await chrome.storage.local.get('tabHistory');
+  allEntries = tabHistory;
+  render();
+}
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local') return;
+  if ('tabHistory' in changes) { allEntries = changes.tabHistory.newValue ?? []; render(); }
+  if ('settings'   in changes) {
+    const theme = changes.settings.newValue?.theme ?? 'system';
+    applyTheme(theme);
+  }
+});
+
+// ── Render ────────────────────────────────────────────────────────────────────
+
+function render() {
+  const q = query.trim().toLowerCase();
+  const rows = q
+    ? allEntries.filter(e =>
+        e.url.toLowerCase().includes(q) ||
+        (e.rename    ?? '').toLowerCase().includes(q) ||
+        (e.pageTitle ?? '').toLowerCase().includes(q) ||
+        (e.groupInfo?.title ?? '').toLowerCase().includes(q)
+      )
+    : allEntries;
+
+  const empty = document.getElementById('empty');
+  const tbl   = document.getElementById('tbl');
+  const tbody = document.getElementById('tbody');
+  const stats = document.getElementById('stats');
+
+  if (allEntries.length > 0) {
+    const active = allEntries.filter(e => !e.unlockedAt).length;
+    document.getElementById('stat-total').textContent =
+      `${allEntries.length} entr${allEntries.length === 1 ? 'y' : 'ies'}`;
+    const activeEl = document.getElementById('stat-active');
+    activeEl.textContent = active > 0 ? `${active} active` : '';
+    activeEl.className   = active > 0 ? 'stat-active' : '';
+    stats.classList.remove('hidden');
+  } else {
+    stats.classList.add('hidden');
+  }
+
+  if (rows.length === 0) {
+    tbl.classList.add('hidden');
+    empty.classList.remove('hidden');
+    document.getElementById('empty-msg').textContent = allEntries.length === 0
+      ? 'No history yet. Lock a tab to start tracking.'
+      : 'No entries match your filter.';
+    selectedIds.clear();
+    updateSelectionUI();
+    return;
+  }
+
+  tbl.classList.remove('hidden');
+  empty.classList.add('hidden');
+  tbody.innerHTML = '';
+  for (const entry of rows) tbody.appendChild(buildRow(entry));
+  updateSelectionUI();
+}
+
+function updateSelectionUI() {
+  const count = selectedIds.size;
+  document.getElementById('selected-count').textContent = count;
+  document.getElementById('open-count').textContent = count;
+  document.getElementById('btn-delete-selected').classList.toggle('hidden', count === 0);
+  document.getElementById('btn-open-selected').classList.toggle('hidden', count === 0);
+
+  const checkboxes = [...document.querySelectorAll('.row-checkbox')];
+  const total   = checkboxes.length;
+  const checked = checkboxes.filter(cb => cb.checked).length;
+  const selectAll = document.getElementById('select-all');
+  selectAll.checked       = total > 0 && checked === total;
+  selectAll.indeterminate = checked > 0 && checked < total;
+}
+
+function buildRow(entry) {
+  const tr = document.createElement('tr');
+  if (!entry.unlockedAt) tr.classList.add('row-active');
+  if (selectedIds.has(entry.id)) tr.classList.add('row-selected');
+
+  // Checkbox
+  const checkTd = document.createElement('td');
+  checkTd.className = 'col-check';
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.className = 'row-checkbox';
+  checkbox.dataset.id = entry.id;
+  checkbox.checked = selectedIds.has(entry.id);
+  checkbox.addEventListener('change', () => {
+    if (checkbox.checked) { selectedIds.add(entry.id);    tr.classList.add('row-selected'); }
+    else                  { selectedIds.delete(entry.id); tr.classList.remove('row-selected'); }
+    updateSelectionUI();
+  });
+  checkTd.appendChild(checkbox);
+
+  // Site
+  const siteTd = document.createElement('td');
+  siteTd.className = 'col-site';
+  let host = '';
+  try { host = new URL(entry.url).hostname.replace(/^www\./, ''); } catch {}
+  const siteCell = document.createElement('div');
+  siteCell.className = 'site-cell';
+  const hostSpan = document.createElement('a');
+  hostSpan.className = 'site-host';
+  hostSpan.textContent = host;
+  hostSpan.href = entry.url;
+  hostSpan.target = '_blank';
+  hostSpan.rel = 'noopener noreferrer';
+  siteCell.appendChild(hostSpan);
+  if (entry.pageTitle) {
+    const titleSpan = document.createElement('span');
+    titleSpan.className = 'site-title';
+    titleSpan.textContent = entry.pageTitle;
+    siteCell.appendChild(titleSpan);
+  }
+  const urlSpan = document.createElement('a');
+  urlSpan.className = 'site-url';
+  urlSpan.href = entry.url;
+  urlSpan.target = '_blank';
+  urlSpan.rel = 'noopener noreferrer';
+  urlSpan.title = entry.url;
+  urlSpan.textContent = entry.url;
+  siteCell.appendChild(urlSpan);
+  siteTd.appendChild(siteCell);
+
+  // Custom name
+  const nameTd = document.createElement('td');
+  nameTd.className = 'col-name';
+  const nameSpan = document.createElement('span');
+  nameSpan.className = entry.rename ? 'name-tag' : 'empty-val';
+  nameSpan.textContent = entry.rename || '—';
+  nameTd.appendChild(nameSpan);
+
+  // Mode
+  const modeTd = document.createElement('td');
+  modeTd.className = 'col-mode';
+  const modeBadge = document.createElement('span');
+  modeBadge.className = `mode-badge mode-${entry.mode}`;
+  modeBadge.textContent = entry.mode === 'hard' ? 'Hard' : 'Soft';
+  modeTd.appendChild(modeBadge);
+
+  // Group
+  const groupTd = document.createElement('td');
+  groupTd.className = 'col-group';
+  if (entry.groupInfo) {
+    const groupTag = document.createElement('span');
+    groupTag.className = 'group-tag';
+    const dot = document.createElement('span');
+    dot.className = 'group-dot';
+    dot.style.background = groupColor(entry.groupInfo.color);
+    groupTag.appendChild(dot);
+    groupTag.appendChild(document.createTextNode(entry.groupInfo.title || 'Group'));
+    groupTd.appendChild(groupTag);
+  } else {
+    const emptyGroup = document.createElement('span');
+    emptyGroup.className = 'empty-val';
+    emptyGroup.textContent = '—';
+    groupTd.appendChild(emptyGroup);
+  }
+
+  // Locked at
+  const lockedTd = document.createElement('td');
+  lockedTd.className = 'col-time';
+  const lockedSpan = document.createElement('span');
+  lockedSpan.title = fmtFull(entry.lockedAt);
+  lockedSpan.textContent = fmtRel(entry.lockedAt);
+  lockedTd.appendChild(lockedSpan);
+
+  // Unlocked at
+  const unlockedTd = document.createElement('td');
+  unlockedTd.className = 'col-time';
+  const unlockedSpan = document.createElement('span');
+  if (entry.unlockedAt) {
+    unlockedSpan.title = fmtFull(entry.unlockedAt);
+    unlockedSpan.textContent = fmtRel(entry.unlockedAt);
+  } else {
+    unlockedSpan.className = 'active-badge';
+    unlockedSpan.textContent = 'Active';
+  }
+  unlockedTd.appendChild(unlockedSpan);
+
+  // Delete
+  const actionsTd = document.createElement('td');
+  actionsTd.className = 'col-actions';
+  const del = document.createElement('button');
+  del.className = 'btn-del';
+  del.title = 'Delete entry';
+  del.textContent = '×';
+  del.addEventListener('click', () => deleteEntry(entry.id));
+  actionsTd.appendChild(del);
+
+  tr.append(checkTd, siteTd, nameTd, modeTd, groupTd, lockedTd, unlockedTd, actionsTd);
+  return tr;
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+
+async function deleteEntry(id) {
+  const { tabHistory = [] } = await chrome.storage.local.get('tabHistory');
+  await chrome.storage.local.set({ tabHistory: tabHistory.filter(e => e.id !== id) });
+  toast('Entry deleted');
+}
+
+async function clearAll() {
+  const { tabHistory = [] } = await chrome.storage.local.get('tabHistory');
+  const toKeep   = tabHistory.filter(e => !e.unlockedAt || e.rename);
+  const toDelete = tabHistory.filter(e =>  e.unlockedAt && !e.rename);
+  if (toDelete.length === 0) { toast('Nothing to clear — all entries are active or have custom names'); return; }
+  if (!confirm(`Delete ${toDelete.length} closed session${toDelete.length === 1 ? '' : 's'}? Active locks and custom-named entries will not be affected.`)) return;
+  await chrome.storage.local.set({ tabHistory: toKeep });
+  toast(`Cleared ${toDelete.length} entr${toDelete.length === 1 ? 'y' : 'ies'}`);
+}
+
+async function deleteSelected() {
+  const count = selectedIds.size;
+  if (count === 0) return;
+  if (!confirm(`Delete ${count} selected entr${count === 1 ? 'y' : 'ies'}?`)) return;
+  const { tabHistory = [] } = await chrome.storage.local.get('tabHistory');
+  await chrome.storage.local.set({ tabHistory: tabHistory.filter(e => !selectedIds.has(e.id)) });
+  selectedIds.clear();
+  toast(`Deleted ${count} entr${count === 1 ? 'y' : 'ies'}`);
+}
+
+function exportData() {
+  const payload = { version: 1, exportedAt: new Date().toISOString(), entries: allEntries };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `tab-anchor-history-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Exported');
+}
+
+async function importData(file) {
+  try {
+    const raw      = JSON.parse(await file.text());
+    const incoming = Array.isArray(raw) ? raw : (raw.entries ?? []);
+    if (!Array.isArray(incoming)) throw new Error('bad format');
+    const { tabHistory = [], lockedTabs = {} } = await chrome.storage.local.get(['tabHistory', 'lockedTabs']);
+    const existing = new Set(tabHistory.map(e => e.id));
+    const added    = incoming.filter(e => e?.id && e?.url && !existing.has(e.id));
+    const merged   = [...added, ...tabHistory].slice(0, LIMIT);
+
+    // Reconcile: mark imported "active" entries as closed if no matching open locked tab exists here
+    const activeHere = new Set(Object.values(lockedTabs).map(ld => ld.historyId).filter(Boolean));
+    const now = Date.now();
+    let reconciled = 0;
+    const finalHistory = merged.map(e => {
+      if (!e.unlockedAt && !activeHere.has(e.id)) {
+        reconciled++;
+        return { ...e, unlockedAt: now };
+      }
+      return e;
+    });
+
+    await chrome.storage.local.set({ tabHistory: finalHistory });
+    const msg = reconciled > 0
+      ? `Imported ${added.length} entr${added.length === 1 ? 'y' : 'ies'}, marked ${reconciled} inactive`
+      : `Imported ${added.length} new ${added.length === 1 ? 'entry' : 'entries'}`;
+    toast(msg);
+  } catch {
+    toast('Import failed — invalid file', true);
+  }
+}
+
+async function openSelected() {
+  const entries = allEntries.filter(e => selectedIds.has(e.id));
+  if (entries.length === 0) return;
+  for (const e of entries) await chrome.tabs.create({ url: e.url });
+  toast(`Opened ${entries.length} tab${entries.length === 1 ? '' : 's'}`);
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function groupColor(name) {
+  return {
+    grey: '#9e9e9e', blue: '#4285f4', red: '#ea4335', yellow: '#fbbc04',
+    green: '#34a853', pink: '#f472b6', purple: '#9c27b0', cyan: '#22d3ee',
+    orange: '#f97316',
+  }[name] ?? '#9e9e9e';
+}
+
+function fmtRel(ts) {
+  const diff = Date.now() - ts;
+  if (diff < 60_000)         return 'just now';
+  if (diff < 3_600_000)      return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000)     return `${Math.floor(diff / 3_600_000)}h ago`;
+  if (diff < 7 * 86_400_000) return `${Math.floor(diff / 86_400_000)}d ago`;
+  return new Date(ts).toLocaleDateString();
+}
+
+function fmtFull(ts) { return new Date(ts).toLocaleString(); }
+
+function esc(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function toast(msg, isError = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (isError ? ' error' : '');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.className = 'toast'; }, 2500);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+
+document.querySelectorAll('.theme-card').forEach(card => {
+  card.addEventListener('click', () => saveTheme(card.dataset.value));
+});
+
+document.getElementById('toggle-banners').addEventListener('change', e => saveSetting('showBanners', e.target.checked));
+document.getElementById('toggle-chip').addEventListener('change',    e => saveSetting('showChip',    e.target.checked));
+document.querySelectorAll('input[name="link-behavior"]').forEach(r =>
+  r.addEventListener('change', e => { if (e.target.checked) saveSetting('linkBehavior', e.target.value); })
+);
+
+document.getElementById('search').addEventListener('input', e => { query = e.target.value; selectedIds.clear(); render(); });
+document.getElementById('btn-open-selected').addEventListener('click', openSelected);
+document.getElementById('btn-delete-selected').addEventListener('click', deleteSelected);
+document.getElementById('btn-export').addEventListener('click', exportData);
+document.getElementById('btn-clear').addEventListener('click', clearAll);
+document.getElementById('select-all').addEventListener('change', e => {
+  document.querySelectorAll('.row-checkbox').forEach(cb => {
+    cb.checked = e.target.checked;
+    const row = cb.closest('tr');
+    if (e.target.checked) { selectedIds.add(cb.dataset.id);    row?.classList.add('row-selected'); }
+    else                  { selectedIds.delete(cb.dataset.id); row?.classList.remove('row-selected'); }
+  });
+  updateSelectionUI();
+});
+document.getElementById('btn-import').addEventListener('click', () => document.getElementById('file-input').click());
+document.getElementById('file-input').addEventListener('change', e => {
+  if (e.target.files[0]) importData(e.target.files[0]);
+  e.target.value = '';
+});
+
+loadSettings();
+load();

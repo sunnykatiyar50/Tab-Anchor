@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E293B"/>
+      <stop offset="100%" stop-color="#0F172A"/>
+    </linearGradient>
+    <clipPath id="globe-clip">
+      <circle cx="64" cy="62" r="36"/>
+    </clipPath>
+  </defs>
+
+  <!-- Background -->
+  <rect width="128" height="128" rx="24" fill="url(#bg)"/>
+
+  <!-- Globe dark fill -->
+  <circle cx="64" cy="62" r="36" fill="#0F172A"/>
+
+  <!-- Globe grid lines (clipped inside globe) -->
+  <g clip-path="url(#globe-clip)" fill="none" stroke="#F59E0B" stroke-width="1.3" opacity="0.45">
+    <!-- Latitude lines -->
+    <line x1="28" y1="62" x2="100" y2="62"/>
+    <line x1="28" y1="48" x2="100" y2="48"/>
+    <line x1="28" y1="76" x2="100" y2="76"/>
+    <!-- Central meridian -->
+    <line x1="64" y1="26" x2="64" y2="98"/>
+    <!-- Meridian curves -->
+    <ellipse cx="64" cy="62" rx="18" ry="36"/>
+    <ellipse cx="64" cy="62" rx="30" ry="36"/>
+  </g>
+
+  <!-- Globe outline -->
+  <circle cx="64" cy="62" r="36" fill="none" stroke="#F59E0B" stroke-width="3.5"/>
+
+  <!-- PIN badge — bottom-left corner of globe -->
+  <circle cx="38" cy="88" r="13" fill="#0F172A" stroke="#F59E0B" stroke-width="1.8"/>
+  <circle cx="38" cy="82.5" r="4.5" fill="#F59E0B"/>
+  <circle cx="38" cy="82.5" r="2" fill="#0F172A"/>
+  <rect x="36.5" y="86" width="3" height="5" rx="1.5" fill="#F59E0B"/>
+  <polygon points="35.5,91 40.5,91 38,97" fill="#F59E0B"/>
+
+  <!-- LOCK badge — bottom-right corner of globe -->
+  <circle cx="90" cy="88" r="13" fill="#0F172A" stroke="#F59E0B" stroke-width="1.8"/>
+  <path d="M 85,88 Q 85,81.5 90,81.5 Q 95,81.5 95,88" fill="none" stroke="#F59E0B" stroke-width="2.8" stroke-linecap="round"/>
+  <rect x="83" y="87.5" width="14" height="11" rx="3.5" fill="#F59E0B"/>
+  <circle cx="90" cy="92" r="2.2" fill="#0F172A"/>
+  <rect x="88.8" y="92" width="2.4" height="3.5" rx="1.2" fill="#0F172A"/>
+</svg>

@@ -17,13 +17,10 @@ async function loadContentSettings() {
 async function initTabAnchor() {
   await loadContentSettings();
 
-  // Register the storage listener BEFORE the initial status check.
-  // On browser restart, reconcileLockedTabs writes the rematched lock data
-  // asynchronously. If we checked status first and registered this listener
-  // afterwards, a write landing in that gap would be missed entirely —
-  // leaving the lock in storage but never reflected in the UI.
-  //
-  // Fallback for Firefox too: re-sync UI whenever lock state changes in storage.
+  // Check whether this tab is locked on page load and restore overlay/favicon
+  checkLockStatusOnLoad();
+
+  // Fallback for Firefox: re-sync UI whenever lock state changes in storage.
   // Direct background→content messages are unreliable with background.scripts,
   // so watching storage ensures the chip/banner always appears.
   chrome.storage.onChanged.addListener((changes, area) => {
@@ -45,9 +42,6 @@ async function initTabAnchor() {
     }
   });
 
-  // Now check whether this tab is locked on page load and restore overlay/favicon.
-  checkLockStatusOnLoad();
-
   // Listen for messages from the background service worker
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     switch (msg.type) {
@@ -66,7 +60,7 @@ async function initTabAnchor() {
         showCloseWarningBanner();
         break;
       case 'APPLY_LOCK_FAVICON':
-        applyLockFaviconFromBackground(msg.favIconUrl ?? null, msg.mode ?? 'hard');
+        applyLockFaviconFromBackground(msg.favIconUrl ?? null);
         break;
       case 'REMOVE_LOCK_FAVICON':
         removeLockFavicon();
@@ -93,7 +87,7 @@ async function initTabAnchor() {
 // where status === "complete" fires before the content script registers.
 async function checkLockStatusOnLoad() {
   try {
-    const res = await chrome.runtime.sendMessage({ type: 'GET_LOCK_STATUS', url: window.location.href });
+    const res = await chrome.runtime.sendMessage({ type: 'GET_LOCK_STATUS' });
     console.log('[TabAnchor] checkLockStatusOnLoad response', res);
     if (!res?.locked) {
       removeWarningOverlay();
@@ -101,7 +95,7 @@ async function checkLockStatusOnLoad() {
       removeLockFavicon();
       return;
     }
-    applyLockFaviconFromBackground(res.favIconUrl ?? null, res.mode ?? 'hard');
+    applyLockFaviconFromBackground(res.favIconUrl ?? null);
     // Hard lock warning banner
     if (res.mode === 'hard' && res.attemptedUrl) {
       console.log('[TabAnchor] showing warning overlay');
@@ -248,78 +242,52 @@ function showCloseWarningBanner() {
 // ============================================================
 // Favicon lock overlay
 // ============================================================
-// Chrome keeps showing the page's OWN declared <link rel="icon"> even when we
-// append another one last (Firefox prefers the last; Chrome does not). So we
-// override every existing icon link's href with our composited badge and save
-// the originals to restore on unlock. We also inject our own link as a fallback
-// for pages that declare no icon at all. A MutationObserver re-applies the badge
-// when the page swaps its favicon dynamically (e.g. SPA updates).
+// We inject our own <link id="__tl-favicon__"> element and never
+// touch the page's existing favicon elements. Appending it last
+// makes browsers prefer it. Removal simply deletes our element.
+// A MutationObserver re-applies the badge if the page changes
+// its own favicon dynamically (e.g. SPA title/icon updates).
 
 const _TL_FAVICON_ID = '__tl-favicon__';
-const _TL_SAVED_ATTR = 'data-tl-orig-href'; // marks page links we overrode
 let _faviconObserver = null;
 let _faviconDebounce = null;
-let _faviconMode = 'hard';
-let _faviconActive = false;
-let _applyingFavicon = false; // suppress observer reactions to our own writes
 
-function _pageIconLinks() {
-  return [...document.querySelectorAll(
-    'link[rel~="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]'
-  )].filter(l => l.id !== _TL_FAVICON_ID);
-}
-
-async function applyLockFaviconFromBackground(favIconUrl = null, mode = 'hard') {
-  _faviconMode = mode;
-  _faviconActive = true;
+async function applyLockFaviconFromBackground(favIconUrl = null) {
+  _faviconObserver?.disconnect();
   await _refreshLockedFavicon(favIconUrl);
 
-  // (Re)start the observer once. It watches for the page changing its own icons.
-  if (!_faviconObserver) {
-    _faviconObserver = new MutationObserver(() => {
-      if (_applyingFavicon || !_faviconActive) return; // ignore our own mutations
-      clearTimeout(_faviconDebounce);
-      _faviconDebounce = setTimeout(() => _refreshLockedFavicon(), 300);
+  _faviconObserver = new MutationObserver((mutations) => {
+    // Only react to changes made by the page, not by our own element
+    const externalChange = mutations.some(m => {
+      if (m.type === 'childList') {
+        return [...m.addedNodes, ...m.removedNodes].some(
+          n => n.nodeType === 1 && n.id !== _TL_FAVICON_ID && /icon/i.test(n.rel || '')
+        );
+      }
+      return m.type === 'attributes' &&
+             m.target.id !== _TL_FAVICON_ID &&
+             /icon/i.test(m.target.rel || '');
     });
-    _faviconObserver.observe(document.head ?? document.documentElement, {
-      childList: true, subtree: false,
-      attributes: true, attributeFilter: ['href', 'rel'],
-    });
-  }
+    if (!externalChange) return;
+    if (!document.getElementById(_TL_FAVICON_ID)) return;
+    clearTimeout(_faviconDebounce);
+    _faviconDebounce = setTimeout(() => _refreshLockedFavicon(), 300);
+  });
+  _faviconObserver.observe(document.head ?? document.documentElement, {
+    childList: true, subtree: false,
+    attributes: true, attributeFilter: ['href'],
+  });
 }
 
 async function _refreshLockedFavicon(hintUrl = null) {
   try {
-    // Resolve the page's real favicon URL to composite the badge onto.
-    // If we already overrode a link, read its saved original instead of our data URL.
-    const pageLinks = _pageIconLinks();
-    let domUrl = null;
-    for (const l of pageLinks) {
-      const raw = l.getAttribute(_TL_SAVED_ATTR) ?? l.getAttribute('href');
-      if (raw) { try { domUrl = new URL(raw, location.href).href; break; } catch {} }
-    }
-    // Last resort: the site's default /favicon.ico (covers pages with no <link>).
-    const icoFallback = /^https?:$/.test(location.protocol) ? `${location.origin}/favicon.ico` : null;
-    const originalUrl = domUrl ?? hintUrl ?? icoFallback;
-
-    const res = await chrome.runtime.sendMessage({
-      type: 'GET_FAVICON_DATA',
-      originalFaviconUrl: originalUrl,
-      mode: _faviconMode,
-    });
-    // Null means the background couldn't decode the real icon. Leave the page's
-    // own favicon untouched rather than replacing the logo with a blank square.
-    if (!res?.faviconDataUrl || !_faviconActive) return;
-
-    _applyingFavicon = true;
-    // Override the page's own icon links (the part Chrome actually honors).
-    for (const l of pageLinks) {
-      if (!l.hasAttribute(_TL_SAVED_ATTR)) {
-        l.setAttribute(_TL_SAVED_ATTR, l.getAttribute('href') ?? '');
-      }
-      l.href = res.faviconDataUrl;
-    }
-    // Fallback link for pages with no declared icon.
+    const link = document.querySelector(
+      `link[rel="icon"]:not(#${_TL_FAVICON_ID}), link[rel="shortcut icon"], link[rel="apple-touch-icon"]`
+    );
+    const domUrl = (link?.href && (() => { try { new URL(link.href); return link.href; } catch { return null; } })()) ?? null;
+    const originalUrl = domUrl ?? hintUrl ?? null;
+    const res = await chrome.runtime.sendMessage({ type: 'GET_FAVICON_DATA', originalFaviconUrl: originalUrl });
+    if (!res?.faviconDataUrl) return;
     let el = document.getElementById(_TL_FAVICON_ID);
     if (!el) {
       el = document.createElement('link');
@@ -328,29 +296,13 @@ async function _refreshLockedFavicon(hintUrl = null) {
       el.type = 'image/png';
     }
     el.href = res.faviconDataUrl;
-    document.head?.appendChild(el);
-
-    // Discard the records our own writes just queued so the observer doesn't loop.
-    _faviconObserver?.takeRecords();
-  } catch {
-  } finally {
-    _applyingFavicon = false;
-  }
+    document.head.appendChild(el); // always last so browsers prefer our icon
+  } catch {}
 }
 
 function removeLockFavicon() {
   _faviconObserver?.disconnect();
   _faviconObserver = null;
-  clearTimeout(_faviconDebounce);
-  _faviconActive = false;
-
-  // Restore the page's original icon links.
-  for (const l of _pageIconLinks()) {
-    if (!l.hasAttribute(_TL_SAVED_ATTR)) continue;
-    const orig = l.getAttribute(_TL_SAVED_ATTR);
-    if (orig) l.href = orig; else l.removeAttribute('href');
-    l.removeAttribute(_TL_SAVED_ATTR);
-  }
   document.getElementById(_TL_FAVICON_ID)?.remove();
 }
 
