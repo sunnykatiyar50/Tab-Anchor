@@ -410,15 +410,35 @@ function hideSoftLockChip() {
 // Tab rename
 // ============================================================
 
+let _renameName = null;
+let _renameObserver = null;
+
+// Re-asserts the custom title whenever the page (e.g. an SPA router) overwrites it
+function enforceRename() {
+  if (_renameName && document.title !== _renameName) document.title = _renameName;
+}
+
 function applyRename(name) {
   if (name) {
     if (window.__tlOriginalTitle === undefined) {
       window.__tlOriginalTitle = document.title;
     }
-    document.title = name;
-  } else if (window.__tlOriginalTitle !== undefined) {
-    document.title = window.__tlOriginalTitle;
-    window.__tlOriginalTitle = undefined;
+    _renameName = name;
+    enforceRename();
+    if (!_renameObserver) {
+      _renameObserver = new MutationObserver(enforceRename);
+      _renameObserver.observe(document.documentElement, {
+        childList: true, subtree: true, characterData: true,
+      });
+    }
+  } else {
+    _renameName = null;
+    _renameObserver?.disconnect();
+    _renameObserver = null;
+    if (window.__tlOriginalTitle !== undefined) {
+      document.title = window.__tlOriginalTitle;
+      window.__tlOriginalTitle = undefined;
+    }
   }
 }
 

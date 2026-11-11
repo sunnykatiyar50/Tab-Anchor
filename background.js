@@ -18,7 +18,7 @@ async function setLockData(tabId, data) {
   await chrome.storage.local.set({ lockedTabs, lockedUrls });
 }
 
-async function lockTab(tabId, url, mode = 'hard', pageTitle = null) {
+async function lockTab(tabId, url, mode = 'hard', pageTitle = null, rename = null) {
   let groupId = -1; // TAB_GROUP_ID_NONE
   let groupInfo = null;
   if (chrome.tabGroups) {
@@ -32,7 +32,7 @@ async function lockTab(tabId, url, mode = 'hard', pageTitle = null) {
     } catch {}
   }
   const historyId = await addHistoryEntry({ url, mode, pageTitle, groupInfo });
-  await setLockData(tabId, { lockedUrl: url, attemptedUrl: null, mode, rename: null, groupId, groupInfo, historyId, pageTitle });
+  await setLockData(tabId, { lockedUrl: url, attemptedUrl: null, mode, rename, groupId, groupInfo, historyId, pageTitle });
 }
 
 async function unlockTab(tabId) {
@@ -729,7 +729,7 @@ chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
 
   try {
     const newTab = await chrome.tabs.create({ url: lockData.lockedUrl, windowId: removeInfo.windowId });
-    await lockTab(newTab.id, lockData.lockedUrl, lockData.mode);
+    await lockTab(newTab.id, lockData.lockedUrl, lockData.mode, lockData.pageTitle ?? null, lockData.rename ?? null);
 
     // Restore rename and group into the new lock entry
     const ld = await getLockData(newTab.id);
@@ -757,6 +757,9 @@ chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
     }
 
     await setLockData(newTab.id, ld);
+    if (ld.rename) {
+      try { await chrome.tabs.sendMessage(newTab.id, { type: 'APPLY_RENAME', name: ld.rename }); } catch {}
+    }
     await updateToolbarIcon(newTab.id);
     await updateContextMenuTitles(newTab.id);
   } catch { /* window may have already closed */ }
