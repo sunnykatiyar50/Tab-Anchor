@@ -21,6 +21,8 @@ async function setLockData(tabId, data) {
 async function lockTab(tabId, url, mode = 'hard', pageTitle = null) {
   let groupId = -1; // TAB_GROUP_ID_NONE
   let groupInfo = null;
+  let index = null;
+  try { index = (await chrome.tabs.get(tabId)).index; } catch {}
   if (chrome.tabGroups) {
     try {
       const tab = await chrome.tabs.get(tabId);
@@ -32,7 +34,7 @@ async function lockTab(tabId, url, mode = 'hard', pageTitle = null) {
     } catch {}
   }
   const historyId = await addHistoryEntry({ url, mode, pageTitle, groupInfo });
-  await setLockData(tabId, { lockedUrl: url, attemptedUrl: null, mode, rename: null, groupId, groupInfo, historyId, pageTitle });
+  await setLockData(tabId, { lockedUrl: url, attemptedUrl: null, mode, rename: null, groupId, groupInfo, historyId, pageTitle, index });
 }
 
 async function unlockTab(tabId) {
@@ -713,12 +715,41 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   }
 });
 
+// Record each locked tab's current position so a closed tab can be reopened in
+// the same spot (removeInfo does not include the tab's index).
+async function refreshLockedTabIndexes() {
+  // Query live tabs first so the storage read-modify-write below has no awaits
+  // in between; a stale write would clobber concurrent lock updates.
+  const indexById = new Map((await chrome.tabs.query({})).map(t => [String(t.id), t.index]));
+  const { lockedTabs = {} } = await chrome.storage.local.get('lockedTabs');
+  let changed = false;
+  for (const [idStr, ld] of Object.entries(lockedTabs)) {
+    const index = indexById.get(idStr);
+    if (index != null && ld.index !== index) {
+      ld.index = index;
+      changed = true;
+    }
+  }
+  if (changed) await chrome.storage.local.set({ lockedTabs });
+}
+
+for (const evt of ['onCreated', 'onMoved', 'onAttached', 'onDetached', 'onActivated']) {
+  chrome.tabs[evt].addListener(() => { refreshLockedTabIndexes().catch(() => {}); });
+}
+// Backfill positions for locks created before indexes were tracked, and after
+// the service worker restarts.
+refreshLockedTabIndexes().catch(() => {});
+
 // When a tab is closed, clean up state.
 // For locked tabs (hard or soft), reopen the tab at the pinned URL (unless the whole window is closing).
 chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
   const { lockedTabs = {} } = await chrome.storage.local.get('lockedTabs');
   const lockData = lockedTabs[String(tabId)];
-  if (!lockData) return;
+  if (!lockData) {
+    // A neighbouring tab closed — positions of locked tabs shift
+    refreshLockedTabIndexes().catch(() => {});
+    return;
+  }
 
   delete lockedTabs[String(tabId)];
   await chrome.storage.local.set({ lockedTabs });
@@ -728,7 +759,11 @@ chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
   if (removeInfo.isWindowClosing) return;
 
   try {
-    const newTab = await chrome.tabs.create({ url: lockData.lockedUrl, windowId: removeInfo.windowId });
+    const newTab = await chrome.tabs.create({
+      url: lockData.lockedUrl,
+      windowId: removeInfo.windowId,
+      ...(lockData.index != null ? { index: lockData.index } : {}),
+    });
     await lockTab(newTab.id, lockData.lockedUrl, lockData.mode);
 
     // Restore rename and group into the new lock entry
