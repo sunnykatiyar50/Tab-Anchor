@@ -5,10 +5,13 @@ if (window === window.top) {
 
 // Cached user preferences — loaded once on init, kept in sync via storage events
 let _settings = { showBanners: true, showChip: true };
+// Chip offsets from the viewport's bottom/right edges, shared across all tabs
+let _chipPos = null;
 
 async function loadContentSettings() {
   try {
-    const { settings = {} } = await chrome.storage.local.get('settings');
+    const { settings = {}, chipPosition = null } = await chrome.storage.local.get(['settings', 'chipPosition']);
+    _chipPos = chipPosition;
     _settings.showBanners = settings.showBanners !== false;
     _settings.showChip    = settings.showChip    !== false;
   } catch {}
@@ -30,6 +33,11 @@ async function initTabAnchor() {
     if (area !== 'local') return;
     if ('lockedTabs' in changes) {
       checkLockStatusOnLoad();
+    }
+    if ('chipPosition' in changes) {
+      _chipPos = changes.chipPosition.newValue ?? null;
+      const live = document.getElementById('__tab-anchor-chip__');
+      if (live) applyChipPosition(live);
     }
     if ('settings' in changes) {
       const s = changes.settings.newValue ?? {};
@@ -358,6 +366,25 @@ function removeLockFavicon() {
 // Soft lock chip
 // ============================================================
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const CHIP_ICONS = {
+  lock:  ['M7 11V8a5 5 0 0 1 10 0v3', 'M6 11h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z'],
+  back:  ['M10 6l-6 6 6 6', 'M4 12h16'],
+  unlock: ['M7 11V8a5 5 0 0 1 9.6-2', 'M6 11h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z'],
+};
+
+function chipIcon(name) {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  for (const d of CHIP_ICONS[name]) {
+    const path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('d', d);
+    svg.appendChild(path);
+  }
+  return svg;
+}
+
 function showSoftLockChip(lockedUrl, atHome) {
   if (!_settings.showChip) return;
   hideSoftLockChip();
@@ -367,18 +394,22 @@ function showSoftLockChip(lockedUrl, atHome) {
 
   const icon = document.createElement('span');
   icon.className = 'tl-chip-icon';
-  icon.textContent = '🔒';
+  icon.appendChild(chipIcon('lock'));
   chip.appendChild(icon);
 
   const label = document.createElement('span');
   label.className = 'tl-chip-label';
-  label.textContent = 'Soft locked';
+  label.textContent = 'Pinned';
   chip.appendChild(label);
 
   if (!atHome) {
     const backBtn = document.createElement('button');
     backBtn.className = 'tl-chip-back';
-    backBtn.textContent = 'Go to Pinned URL';
+    backBtn.title = 'Return to the pinned URL';
+    backBtn.appendChild(chipIcon('back'));
+    const text = document.createElement('span');
+    text.textContent = 'Back to pinned';
+    backBtn.appendChild(text);
     backBtn.addEventListener('click', () => {
       try { chrome.runtime.sendMessage({ type: 'GO_BACK_TO_LOCKED' }); } catch {}
     });
@@ -387,8 +418,9 @@ function showSoftLockChip(lockedUrl, atHome) {
 
   const closeBtn = document.createElement('button');
   closeBtn.className = 'tl-chip-close';
-  closeBtn.title = 'Remove soft lock';
-  closeBtn.textContent = '×';
+  closeBtn.title = 'Unlock tab';
+  closeBtn.setAttribute('aria-label', 'Unlock tab');
+  closeBtn.appendChild(chipIcon('unlock'));
   closeBtn.addEventListener('click', () => {
     try { chrome.runtime.sendMessage({ type: 'REMOVE_SOFT_LOCK' }); } catch {}
     hideSoftLockChip();
@@ -399,7 +431,63 @@ function showSoftLockChip(lockedUrl, atHome) {
   const el = document.createElement('div');
   el.id = '__tab-anchor-chip__';
   el.appendChild(chip);
+  applyChipPosition(el);
+  makeChipDraggable(el);
   document.body.appendChild(el);
+}
+
+function clampChipPosition(el, right, bottom) {
+  const maxRight  = Math.max(0, document.documentElement.clientWidth  - el.offsetWidth);
+  const maxBottom = Math.max(0, document.documentElement.clientHeight - el.offsetHeight);
+  return {
+    right:  Math.min(Math.max(0, right),  maxRight),
+    bottom: Math.min(Math.max(0, bottom), maxBottom),
+  };
+}
+
+function applyChipPosition(el) {
+  if (!_chipPos) return;
+  const { right, bottom } = clampChipPosition(el, _chipPos.right, _chipPos.bottom);
+  el.style.right  = right + 'px';
+  el.style.bottom = bottom + 'px';
+}
+
+function makeChipDraggable(el) {
+  el.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || e.target.closest('button')) return;
+    e.preventDefault();
+    const rect = el.getBoundingClientRect();
+    const offX = e.clientX - rect.left;
+    const offY = e.clientY - rect.top;
+    el.setPointerCapture(e.pointerId);
+    el.classList.add('tl-dragging');
+
+    const onMove = (ev) => {
+      const left = ev.clientX - offX;
+      const top  = ev.clientY - offY;
+      const pos = clampChipPosition(
+        el,
+        document.documentElement.clientWidth  - left - el.offsetWidth,
+        document.documentElement.clientHeight - top  - el.offsetHeight
+      );
+      _chipPos = pos;
+      el.style.right  = pos.right + 'px';
+      el.style.bottom = pos.bottom + 'px';
+    };
+    const onUp = () => {
+      el.classList.remove('tl-dragging');
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerup', onUp);
+      el.removeEventListener('pointercancel', onUp);
+      try { chrome.storage.local.set({ chipPosition: _chipPos }); } catch {}
+    };
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onUp);
+    el.addEventListener('pointercancel', onUp);
+  });
+  window.addEventListener('resize', () => {
+    if (el.isConnected) applyChipPosition(el);
+  });
 }
 
 function hideSoftLockChip() {
